@@ -122,9 +122,22 @@ make app
 make package
 ```
 
-`make app` creates an ad-hoc signed `dist/CodexMenuBar.app`. Set `CODESIGN_IDENTITY` to use a Developer ID identity instead. `make package` additionally creates `dist/CodexMenuBar-macOS.zip`.
+`make app` creates an ad-hoc signed universal `dist/CodexMenuBar.app` (`arm64` + `x86_64`). Set `CODESIGN_IDENTITY` to use a Developer ID identity instead. `make package` additionally creates a versioned ZIP and SHA-256 checksum.
 
-Launch at login is intended for a packaged app build; `swift run` remains the development path.
+Launch at login and macOS notifications are intended for a packaged app build; `swift run` remains the development path.
+
+### GitHub Releases and Homebrew
+
+The v0.2 release workflow publishes tagged builds automatically:
+
+```bash
+git tag v0.2.0-beta.1
+git push origin v0.2.0-beta.1
+```
+
+Release assets include the universal ZIP, its SHA-256 checksum, and a generated Homebrew Cask. Once the `sangimed/homebrew-tap` repository is configured, the workflow can update it automatically.
+
+See **[RELEASING.md](RELEASING.md)** for the complete free distribution setup, Homebrew tap bootstrap, Gatekeeper notes, and stable/prerelease flow.
 
 ## Privacy
 
@@ -190,7 +203,7 @@ The v0.2 branch adds:
 
 ## Known limitations
 
-- v0.1 is currently a source/development build rather than a signed packaged release.
+- v0.2 community releases are ad-hoc signed and are not Apple-notarized, so Gatekeeper may require explicit user approval on first launch.
 - CodexMenuBar keeps one local `codex app-server` process alive while the app is running and reconnects automatically if it exits.
 - The Codex app-server protocol can evolve between Codex CLI releases.
 - Some accounts may temporarily receive only one quota window from Codex.
