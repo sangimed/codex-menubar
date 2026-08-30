@@ -1,4 +1,8 @@
 import Foundation
+#if os(macOS)
+import Darwin
+#endif
+
 
 public enum CodexAppServerError: LocalizedError, Equatable {
     case codexNotFound
@@ -31,6 +35,13 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
     public init(timeout: TimeInterval = 10) {
         self.timeout = timeout
+
+        #if os(macOS)
+        // A child process may close stdin before a JSON-RPC write completes.
+        // Ignore SIGPIPE so Foundation can report EPIPE as a Swift error
+        // instead of terminating CodexMenuBar.
+        signal(SIGPIPE, SIG_IGN)
+        #endif
     }
 
     public func fetchUsage() async throws -> CodexUsageSummary {
@@ -56,7 +67,9 @@ public final class CodexAppServerClient: @unchecked Sendable {
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
+        // Keep Codex diagnostics visible during development. This is
+        // especially useful if app-server exits and closes its stdin pipe.
+        process.standardError = FileHandle.standardError
 
         do {
             try process.run()
@@ -205,7 +218,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
     ) throws {
         var data = try JSONSerialization.data(withJSONObject: object)
         data.append(0x0A)
-        handle.write(data)
+        try handle.write(contentsOf: data)
     }
 
     private func readResponse(
