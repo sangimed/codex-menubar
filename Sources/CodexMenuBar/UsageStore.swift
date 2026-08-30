@@ -21,6 +21,16 @@ final class UsageStore: ObservableObject {
 
     let preferences: PreferencesStore
 
+    var notificationsAvailable: Bool {
+        notificationManager.isSupported
+    }
+
+    var notificationAvailabilityMessage: String? {
+        notificationManager.isSupported
+            ? nil
+            : notificationManager.unsupportedReason
+    }
+
     private let client: CodexAppServerClient
     private let notificationManager:
         UsageNotificationManager
@@ -67,8 +77,12 @@ final class UsageStore: ObservableObject {
         }
 
         if preferences.notificationsEnabled {
-            notificationManager
-                .requestAuthorization()
+            if notificationManager.isSupported {
+                notificationManager
+                    .requestAuthorization()
+            } else {
+                preferences.notificationsEnabled = false
+            }
         }
 
         sessionTask = Task { [weak self] in
@@ -107,13 +121,19 @@ final class UsageStore: ObservableObject {
     func setNotificationsEnabled(
         _ enabled: Bool
     ) {
-        preferences.notificationsEnabled =
-            enabled
-
-        if enabled {
-            notificationManager
-                .requestAuthorization()
+        guard enabled else {
+            preferences.notificationsEnabled = false
+            return
         }
+
+        guard notificationManager.isSupported else {
+            preferences.notificationsEnabled = false
+            return
+        }
+
+        preferences.notificationsEnabled = true
+        notificationManager
+            .requestAuthorization()
     }
 
     func clearHistory() {
