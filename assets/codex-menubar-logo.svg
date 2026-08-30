@@ -1,66 +1,69 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" fill="none">
   <defs>
-    <linearGradient id="outer" x1="120" y1="420" x2="405" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4B22D1"/>
-      <stop offset="0.38" stop-color="#6E3DF0"/>
-      <stop offset="0.7" stop-color="#A25FF6"/>
-      <stop offset="1" stop-color="#F0B8FF"/>
+    <linearGradient id="outerBase" x1="245" y1="1020" x2="1045" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35149B"/>
+      <stop offset="0.28" stop-color="#4D24D1"/>
+      <stop offset="0.52" stop-color="#7141EF"/>
+      <stop offset="0.76" stop-color="#A66BF5"/>
+      <stop offset="1" stop-color="#EBC2FC"/>
     </linearGradient>
-
-    <linearGradient id="inner" x1="190" y1="360" x2="355" y2="165" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6425E8"/>
-      <stop offset="0.48" stop-color="#9A4EF3"/>
-      <stop offset="1" stop-color="#EDB2FF"/>
+    <linearGradient id="innerBase" x1="445" y1="840" x2="880" y2="390" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B18E4"/>
+      <stop offset="0.30" stop-color="#7725F1"/>
+      <stop offset="0.58" stop-color="#A854F4"/>
+      <stop offset="0.82" stop-color="#D187F7"/>
+      <stop offset="1" stop-color="#F1C8FC"/>
     </linearGradient>
-
-    <linearGradient id="outerHighlight" x1="160" y1="145" x2="370" y2="250" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="white" stop-opacity="0.46"/>
-      <stop offset="0.62" stop-color="white" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    <linearGradient id="shine" x1="250" y1="970" x2="1050" y2="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.52" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="0.82" stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.62"/>
     </linearGradient>
-
-    <linearGradient id="innerHighlight" x1="210" y1="205" x2="335" y2="255" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="white" stop-opacity="0.4"/>
-      <stop offset="0.62" stop-color="white" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    <linearGradient id="purpleSheen" x1="180" y1="820" x2="960" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A978FF" stop-opacity="0"/>
+      <stop offset="0.48" stop-color="#C99AFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFE9FF" stop-opacity="0.34"/>
     </linearGradient>
-
-    <filter id="softShadow" x="50" y="45" width="420" height="430" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#3B179B" flood-opacity="0.22"/>
+    <filter id="blur18" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
     </filter>
+    <filter id="blur8" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <mask id="maskOuter" maskUnits="userSpaceOnUse" x="0" y="0" width="1254" height="1254" mask-type="alpha">
+      <path d="M 988.50 322.47 A 429.315 429.315 0 1 0 999.52 920.80" stroke="white" stroke-width="131" stroke-linecap="round" fill="none"/>
+    </mask>
+    <mask id="maskInner" maskUnits="userSpaceOnUse" x="0" y="0" width="1254" height="1254" mask-type="alpha">
+      <path d="M 819.65 440.09 A 229.902 229.902 0 1 0 833.70 803.65" stroke="white" stroke-width="97" stroke-linecap="round" fill="none"/>
+    </mask>
   </defs>
 
-  <g filter="url(#softShadow)">
-    <path
-      d="M365 131
-         A178 178 0 1 0 372 376"
-      stroke="url(#outer)"
-      stroke-width="54"
-      stroke-linecap="round"
-    />
+  <g mask="url(#maskOuter)">
+    <path d="M 988.50 322.47 A 429.315 429.315 0 1 0 999.52 920.80"
+          stroke="url(#outerBase)" stroke-width="131" stroke-linecap="round"/>
+    <path d="M 988.50 322.47 A 429.315 429.315 0 1 0 999.52 920.80"
+          transform="translate(-4 31)"
+          stroke="#2A087E" stroke-opacity="0.34" stroke-width="106" stroke-linecap="round" filter="url(#blur18)"/>
+    <path d="M 988.50 322.47 A 429.315 429.315 0 1 0 999.52 920.80"
+          transform="translate(3 -27)"
+          stroke="url(#shine)" stroke-width="101" stroke-linecap="round" filter="url(#blur8)"/>
+    <path d="M 988.50 322.47 A 429.315 429.315 0 1 0 999.52 920.80"
+          transform="translate(6 -45)"
+          stroke="url(#purpleSheen)" stroke-width="54" stroke-linecap="round"/>
+  </g>
 
-    <path
-      d="M335 190
-         A116 116 0 1 0 339 330"
-      stroke="url(#inner)"
-      stroke-width="40"
-      stroke-linecap="round"
-    />
-
-    <path
-      d="M365 131
-         A178 178 0 0 0 152 167"
-      stroke="url(#outerHighlight)"
-      stroke-width="13"
-      stroke-linecap="round"
-    />
-
-    <path
-      d="M335 190
-         A116 116 0 0 0 214 201"
-      stroke="url(#innerHighlight)"
-      stroke-width="9"
-      stroke-linecap="round"
-    />
+  <g mask="url(#maskInner)">
+    <path d="M 819.65 440.09 A 229.902 229.902 0 1 0 833.70 803.65"
+          stroke="url(#innerBase)" stroke-width="97" stroke-linecap="round"/>
+    <path d="M 819.65 440.09 A 229.902 229.902 0 1 0 833.70 803.65"
+          transform="translate(-2 24)"
+          stroke="#5011C9" stroke-opacity="0.28" stroke-width="78" stroke-linecap="round" filter="url(#blur18)"/>
+    <path d="M 819.65 440.09 A 229.902 229.902 0 1 0 833.70 803.65"
+          transform="translate(3 -19)"
+          stroke="url(#shine)" stroke-width="74" stroke-linecap="round" filter="url(#blur8)"/>
+    <path d="M 819.65 440.09 A 229.902 229.902 0 1 0 833.70 803.65"
+          transform="translate(4 -31)"
+          stroke="url(#purpleSheen)" stroke-width="38" stroke-linecap="round"/>
   </g>
 </svg>
