@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/codex-menubar-logo.svg" alt="CodexMenuBar logo" width="180" />
+</p>
+
 # CodexMenuBar
 
 A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
