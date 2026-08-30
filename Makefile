@@ -1,4 +1,4 @@
-.PHONY: check build test run clean
+.PHONY: check build test run app package clean
 
 check:
 	./scripts/check-environment.sh
@@ -12,5 +12,12 @@ test:
 run:
 	swift run CodexMenuBar
 
+app:
+	bash scripts/build-app.sh
+
+package:
+	bash scripts/package-app.sh
+
 clean:
 	swift package clean
+	rm -rf dist
