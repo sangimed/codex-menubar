@@ -7,20 +7,30 @@ struct MenuBarLabel: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "gauge.with.dots.needle.67percent")
-
-            if let summary = store.summary {
-                if let fiveHour = summary.fiveHour {
-                    Text("\(percentage(fiveHour.usedPercent))%")
-                }
-
-                if let weekly = summary.weekly {
-                    Text("W\(percentage(weekly.usedPercent))%")
-                }
-            } else {
-                Text("Codex")
-            }
+            Text(menuBarText)
+                .monospacedDigit()
         }
         .help(store.errorMessage ?? "Codex usage")
+    }
+
+    private var menuBarText: String {
+        guard let summary = store.summary else {
+            return "Codex"
+        }
+
+        switch (summary.fiveHour, summary.weekly) {
+        case let (fiveHour?, weekly?):
+            return "\(percentage(fiveHour.usedPercent))% · W\(percentage(weekly.usedPercent))%"
+
+        case let (fiveHour?, nil):
+            return "\(percentage(fiveHour.usedPercent))%"
+
+        case let (nil, weekly?):
+            return "W\(percentage(weekly.usedPercent))%"
+
+        case (nil, nil):
+            return "Codex"
+        }
     }
 
     private func percentage(_ value: Double) -> Int {
