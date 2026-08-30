@@ -234,6 +234,23 @@ struct MenuBarView: View {
                         }
                     )
                 )
+                .disabled(
+                    !store.notificationsAvailable
+                )
+
+                if let message =
+                    store.notificationAvailabilityMessage
+                {
+                    Text(message)
+                        .font(.caption2)
+                        .foregroundStyle(
+                            .secondary
+                        )
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                }
 
                 if preferences
                     .notificationsEnabled
