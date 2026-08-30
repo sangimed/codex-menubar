@@ -24,8 +24,31 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Check release scripts
+        run: |
+          bash -n scripts/build-app.sh
+          bash -n scripts/package-app.sh
+          bash -n scripts/render-homebrew-cask.sh
+
       - name: Build app bundle
         run: make app
+
+      - name: Verify universal app bundle
+        run: |
+          ARCHS="$(lipo -archs dist/CodexMenuBar.app/Contents/MacOS/CodexMenuBar)"
+          echo "Architectures: $ARCHS"
+          [[ "$ARCHS" == *"arm64"* ]]
+          [[ "$ARCHS" == *"x86_64"* ]]
+          codesign --verify --deep --strict --verbose=2 dist/CodexMenuBar.app
+
+      - name: Validate Homebrew cask rendering
+        run: |
+          bash scripts/render-homebrew-cask.sh \
+            0.2.0 \
+            aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            /tmp/codex-menubar.rb
+          grep -q 'cask "codex-menubar"' /tmp/codex-menubar.rb
+          grep -q 'version "0.2.0"' /tmp/codex-menubar.rb
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
