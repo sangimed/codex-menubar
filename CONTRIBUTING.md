@@ -251,7 +251,7 @@ or:
 swift test
 ```
 
-The initial tests cover the Codex rate-limit JSON model and, importantly, verify that windows are classified by `windowDurationMins` instead of assuming `primary` always means five hours.
+The tests cover the Codex rate-limit JSON model and, importantly, verify that windows are classified by `windowDurationMins` instead of assuming `primary` always means five hours.
 
 Before opening a pull request, run both:
 
@@ -269,12 +269,18 @@ make test
 ├── CONTRIBUTING.md
 ├── Makefile
 ├── scripts/
-│   └── check-environment.sh
+│   ├── check-environment.sh
+│   ├── build-app.sh
+│   └── package-app.sh
 ├── Sources/
 │   ├── CodexMenuBar/
 │   │   ├── CodexMenuBarApp.swift
 │   │   ├── MenuBarLabel.swift
 │   │   ├── MenuBarView.swift
+│   │   ├── PreferencesStore.swift
+│   │   ├── UsageHistoryStore.swift
+│   │   ├── UsageNotificationManager.swift
+│   │   ├── LaunchAtLoginManager.swift
 │   │   └── UsageStore.swift
 │   └── CodexMenuBarCore/
 │       ├── CodexAppServerClient.swift
@@ -343,6 +349,38 @@ The five-hour and weekly limits are detected by duration:
 ```
 
 The code intentionally does not assume that `primary` and `secondary` always have fixed meanings.
+
+v0.2 also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quota, while any additional explicitly reported bucket is surfaced in the popover. The app uses `limitName` when Codex provides one and never guesses a model mapping.
+
+### v0.2 local preferences, history, and notifications
+
+v0.2 stores display and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
+
+Launch at login uses `SMAppService.mainApp` and is intended to be tested from a packaged `.app`, not from `swift run`.
+
+### Build a local app bundle
+
+```bash
+make app
+```
+
+This creates:
+
+```text
+dist/CodexMenuBar.app
+```
+
+To also create a ZIP:
+
+```bash
+make package
+```
+
+For local development the bundle receives an ad-hoc signature. To sign with a Developer ID:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (...)" make app
+```
 
 ## 13. Codex executable discovery
 
