@@ -1,6 +1,17 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 0.2.0 or 0.2.0-beta.1"
+        required: true
+        type: string
+      prerelease:
+        description: "Publish as a prerelease"
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -9,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name }}-${{ github.ref }}-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -20,20 +31,44 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Resolve version
+      - name: Resolve release
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+          MANUAL_PRERELEASE: ${{ inputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
 
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_REF_NAME" != "main" ]]; then
+              echo "Manual releases must be run from main, not $GITHUB_REF_NAME." >&2
+              exit 1
+            fi
+
+            VERSION="${MANUAL_VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid release tag: $GITHUB_REF_NAME" >&2
+            echo "Invalid release version: $VERSION" >&2
             exit 1
           fi
 
+          RELEASE_TAG="v$VERSION"
+          IS_PRERELEASE=false
+
+          if [[ "$VERSION" == *-* || "${MANUAL_PRERELEASE:-false}" == "true" ]]; then
+            IS_PRERELEASE=true
+          fi
+
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "ASSET_NAME=CodexMenuBar-v$VERSION-macOS.zip" >> "$GITHUB_ENV"
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> "$GITHUB_ENV"
+
+          echo "Release tag: $RELEASE_TAG"
+          echo "Prerelease: $IS_PRERELEASE"
 
       - name: Show Swift version
         run: swift --version
@@ -78,12 +113,19 @@ jobs:
           set -euo pipefail
 
           PRERELEASE_ARGS=()
+          TARGET_ARGS=()
 
-          if [[ "$VERSION" == *-* ]]; then
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
             PRERELEASE_ARGS+=(--prerelease)
           fi
 
-          gh release create "$GITHUB_REF_NAME"             "dist/$ASSET_NAME"             "dist/$ASSET_NAME.sha256"             "dist/codex-menubar.rb"             --repo "$GITHUB_REPOSITORY"             --title "CodexMenuBar $GITHUB_REF_NAME"             --generate-notes             "${PRERELEASE_ARGS[@]}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            TARGET_ARGS+=(--verify-tag)
+          else
+            TARGET_ARGS+=(--target "$GITHUB_SHA")
+          fi
+
+          gh release create "$RELEASE_TAG"             "dist/$ASSET_NAME"             "dist/$ASSET_NAME.sha256"             "dist/codex-menubar.rb"             --repo "$GITHUB_REPOSITORY"             --title "CodexMenuBar $RELEASE_TAG"             --generate-notes             "${TARGET_ARGS[@]}"             "${PRERELEASE_ARGS[@]}"
 
       - name: Update Homebrew tap
         env:
@@ -91,6 +133,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            echo "::notice::Prerelease detected; skipping Homebrew tap update."
+            exit 0
+          fi
 
           if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
             echo "::notice::HOMEBREW_TAP_TOKEN is not configured; skipping tap update."
