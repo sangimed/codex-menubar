@@ -13,15 +13,35 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
+ARCH_ARGS=()
+if [[ "${UNIVERSAL_BINARY:-1}" == "1" ]]; then
+  ARCH_ARGS=(--arch arm64 --arch x86_64)
+fi
+
 echo "Building release binary…"
-swift build -c release
-BIN_DIR="$(swift build -c release --show-bin-path)"
+swift build -c release "${ARCH_ARGS[@]}"
+BIN_DIR="$(swift build -c release "${ARCH_ARGS[@]}" --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$BIN_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
 chmod +x "$MACOS_DIR/$APP_NAME"
+
+if [[ "${UNIVERSAL_BINARY:-1}" == "1" ]]; then
+  BUILT_ARCHS="$(lipo -archs "$MACOS_DIR/$APP_NAME")"
+  echo "Built architectures: $BUILT_ARCHS"
+
+  [[ "$BUILT_ARCHS" == *"arm64"* ]] || {
+    echo "error: release binary is missing arm64" >&2
+    exit 1
+  }
+
+  [[ "$BUILT_ARCHS" == *"x86_64"* ]] || {
+    echo "error: release binary is missing x86_64" >&2
+    exit 1
+  }
+fi
 
 if [[ -f "$ROOT_DIR/assets/codex-menubar-logo.svg" ]]; then
   cp "$ROOT_DIR/assets/codex-menubar-logo.svg" "$RESOURCES_DIR/"
@@ -60,8 +80,10 @@ if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
   echo "Signing with: $CODESIGN_IDENTITY"
   codesign --force --deep --options runtime --sign "$CODESIGN_IDENTITY" "$APP_DIR"
 else
-  echo "Applying ad-hoc signature for local development…"
+  echo "Applying ad-hoc signature…"
   codesign --force --deep --sign - "$APP_DIR"
 fi
+
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 echo "Built: $APP_DIR"
