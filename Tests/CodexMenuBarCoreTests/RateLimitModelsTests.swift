@@ -62,6 +62,56 @@ final class RateLimitModelsTests: XCTestCase {
         XCTAssertEqual(summary.planType, "plus")
     }
 
+    func testExposesAdditionalNamedLimitBuckets() throws {
+        let data = Data(
+            """
+            {
+              "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                  "usedPercent": 20,
+                  "windowDurationMins": 300,
+                  "resetsAt": 100
+                }
+              },
+              "rateLimitsByLimitId": {
+                "codex": {
+                  "limitId": "codex",
+                  "primary": {
+                    "usedPercent": 20,
+                    "windowDurationMins": 300,
+                    "resetsAt": 100
+                  }
+                },
+                "codex-mini": {
+                  "limitId": "codex-mini",
+                  "limitName": "Codex Mini",
+                  "primary": {
+                    "usedPercent": 40,
+                    "windowDurationMins": 60,
+                    "resetsAt": 200
+                  }
+                }
+              }
+            }
+            """.utf8
+        )
+
+        let response = try JSONDecoder().decode(
+            RateLimitsResponse.self,
+            from: data
+        )
+        let summary = CodexUsageSummary(response: response)
+
+        XCTAssertEqual(summary.additionalLimits.count, 1)
+        XCTAssertEqual(summary.additionalLimits.first?.id, "codex-mini")
+        XCTAssertEqual(summary.additionalLimits.first?.name, "Codex Mini")
+        XCTAssertEqual(
+            summary.additionalLimits.first?.windows.first?.windowDurationMins,
+            60
+        )
+    }
+
     func testClassifiesWindowsByDurationNotPrimarySecondaryPosition() {
         let weekly = RateLimitWindow(
             usedPercent: 10,
