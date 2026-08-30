@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/codex-menubar-logo.svg" alt="CodexMenuBar logo" width="180" />
+  <img src="assets/codex-menubar-logo.svg" alt="CodexMenuBar logo" width="240" />
 </p>
 
 # CodexMenuBar
