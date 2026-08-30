@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=CodexMenuBar-v$VERSION-macOS.zip" >> "$GITHUB_ENV"
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Package universal app
+        run: VERSION="$VERSION" make package
+
+      - name: Verify universal binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BINARY="dist/CodexMenuBar.app/Contents/MacOS/CodexMenuBar"
+          ARCHS="$(lipo -archs "$BINARY")"
+
+          echo "Release architectures: $ARCHS"
+
+          [[ "$ARCHS" == *"arm64"* ]]
+          [[ "$ARCHS" == *"x86_64"* ]]
+
+          codesign --verify --deep --strict --verbose=2 dist/CodexMenuBar.app
+
+      - name: Render Homebrew cask
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHA256="$(shasum -a 256 "dist/$ASSET_NAME" | awk '{print $1}')"
+
+          bash scripts/render-homebrew-cask.sh             "$VERSION"             "$SHA256"             dist/codex-menubar.rb
+
+          echo "SHA256=$SHA256" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PRERELEASE_ARGS=()
+
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE_ARGS+=(--prerelease)
+          fi
+
+          gh release create "$GITHUB_REF_NAME"             "dist/$ASSET_NAME"             "dist/$ASSET_NAME.sha256"             "dist/codex-menubar.rb"             --repo "$GITHUB_REPOSITORY"             --title "CodexMenuBar $GITHUB_REF_NAME"             --generate-notes             "${PRERELEASE_ARGS[@]}"
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN is not configured; skipping tap update."
+            exit 0
+          fi
+
+          TAP_DIR="$RUNNER_TEMP/homebrew-tap"
+
+          git clone             "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/sangimed/homebrew-tap.git"             "$TAP_DIR"
+
+          mkdir -p "$TAP_DIR/Casks"
+          cp dist/codex-menubar.rb "$TAP_DIR/Casks/codex-menubar.rb"
+
+          cd "$TAP_DIR"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Casks/codex-menubar.rb
+
+          if git diff --cached --quiet; then
+            echo "Homebrew cask already up to date."
+            exit 0
+          fi
+
+          git commit -m "codex-menubar $VERSION"
+          git push origin HEAD:main
