@@ -3,10 +3,36 @@ import Foundation
 import UserNotifications
 
 final class UsageNotificationManager {
-    func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(
-            options: [.alert, .sound]
-        ) { _, _ in }
+    var isSupported: Bool {
+        guard
+            Bundle.main.bundleURL.pathExtension == "app",
+            let bundleIdentifier =
+                Bundle.main.bundleIdentifier,
+            !bundleIdentifier.isEmpty
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    var unsupportedReason: String {
+        "Notifications are available from the packaged CodexMenuBar.app. Use make app to test them."
+    }
+
+    @discardableResult
+    func requestAuthorization() -> Bool {
+        guard isSupported else {
+            return false
+        }
+
+        UNUserNotificationCenter
+            .current()
+            .requestAuthorization(
+                options: [.alert, .sound]
+            ) { _, _ in }
+
+        return true
     }
 
     func notifyThresholdCrossings(
@@ -14,7 +40,8 @@ final class UsageNotificationManager {
         current: CodexUsageSummary,
         threshold: Int
     ) {
-        guard let previous else {
+        guard isSupported,
+              let previous else {
             return
         }
 
@@ -43,26 +70,36 @@ final class UsageNotificationManager {
             return
         }
 
-        let thresholdValue = Double(threshold)
+        let thresholdValue =
+            Double(threshold)
 
-        guard previous.remainingPercent > thresholdValue,
-              current.remainingPercent <= thresholdValue else {
+        guard
+            previous.remainingPercent
+                > thresholdValue,
+            current.remainingPercent
+                <= thresholdValue
+        else {
             return
         }
 
-        let content = UNMutableNotificationContent()
-        content.title = "Codex quota running low"
+        let content =
+            UNMutableNotificationContent()
+        content.title =
+            "Codex quota running low"
         content.body =
             "\(name) quota has \(Int(current.remainingPercent.rounded()))% remaining."
         content.sound = .default
 
-        let request = UNNotificationRequest(
-            identifier:
-                "codex-menubar-\(name)-\(current.resetsAt)-\(threshold)",
-            content: content,
-            trigger: nil
-        )
+        let request =
+            UNNotificationRequest(
+                identifier:
+                    "codex-menubar-\(name)-\(current.resetsAt)-\(threshold)",
+                content: content,
+                trigger: nil
+            )
 
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter
+            .current()
+            .add(request)
     }
 }
