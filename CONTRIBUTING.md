@@ -302,23 +302,26 @@ Contains the macOS UI and application state:
 - `MenuBarExtra`
 - menu bar label
 - popover
-- automatic refresh
-- manual refresh
+- persistent app-server lifecycle
+- live notification updates
+- fallback and manual refresh
 
 ## 12. How the Codex integration works
 
-For every refresh, CodexMenuBar:
+CodexMenuBar uses one persistent local app-server session:
 
 1. Finds the local `codex` executable.
-2. Starts `codex app-server --stdio`.
+2. Starts `codex app-server --stdio` once.
 3. Sends the JSON-RPC `initialize` request.
 4. Sends the `initialized` notification.
-5. Calls `account/rateLimits/read`.
-6. Reads the structured rate-limit response.
-7. Stops the temporary app-server process.
-8. Updates the SwiftUI state.
+5. Calls `account/rateLimits/read` for the initial snapshot.
+6. Keeps reading JSONL messages from the same stdout pipe.
+7. Applies `account/rateLimits/updated` notifications immediately.
+8. Reuses the same connection for manual refreshes.
+9. Sends a fallback `account/rateLimits/read` every five minutes.
+10. Restarts the app-server with exponential backoff if it exits.
 
-The v0.1 development build refreshes once per minute and also has a manual refresh button.
+This avoids repeatedly spawning Codex processes while keeping the menu bar fresher than fixed-interval polling.
 
 The response can contain several buckets. CodexMenuBar prefers:
 
@@ -424,7 +427,7 @@ CodexMenuBar deliberately displays missing windows as unavailable instead of inv
 
 ### The usage value is briefly stale
 
-The app refreshes automatically every 60 seconds. If a refresh fails, the last successful usage snapshot remains visible and the error appears in the popover.
+The app normally updates from `account/rateLimits/updated` notifications and performs a five-minute fallback resync. If the persistent app-server disconnects, the last successful usage snapshot remains visible while CodexMenuBar reconnects automatically.
 
 ## 15. Make a contribution
 

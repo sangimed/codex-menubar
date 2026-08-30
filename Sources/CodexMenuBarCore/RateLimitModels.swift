@@ -89,4 +89,27 @@ public struct CodexUsageSummary: Equatable, Sendable {
         self.credits = snapshot.credits
         self.planType = snapshot.planType
     }
+
+    public init(
+        fiveHour: RateLimitWindow?,
+        weekly: RateLimitWindow?,
+        credits: CodexCredits?,
+        planType: String?
+    ) {
+        self.fiveHour = fiveHour
+        self.weekly = weekly
+        self.credits = credits
+        self.planType = planType
+    }
+
+    public func preservingMetadata(
+        from previous: CodexUsageSummary?
+    ) -> CodexUsageSummary {
+        CodexUsageSummary(
+            fiveHour: fiveHour,
+            weekly: weekly,
+            credits: credits ?? previous?.credits,
+            planType: planType ?? previous?.planType
+        )
+    }
 }

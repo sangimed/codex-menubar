@@ -7,6 +7,8 @@ import Glibc
 
 public enum CodexAppServerError: LocalizedError, Equatable {
     case codexNotFound
+    case sessionAlreadyRunning
+    case notConnected
     case timedOut(stage: String)
     case unexpectedEndOfOutput
     case malformedResponse
@@ -18,10 +20,14 @@ public enum CodexAppServerError: LocalizedError, Equatable {
         switch self {
         case .codexNotFound:
             return "Codex CLI was not found. Install Codex or set CODEX_EXECUTABLE to its full path."
+        case .sessionAlreadyRunning:
+            return "A Codex app-server session is already running."
+        case .notConnected:
+            return "Codex app-server is not connected yet."
         case let .timedOut(stage):
             return "Codex app-server timed out while waiting for \(stage)."
         case .unexpectedEndOfOutput:
-            return "Codex app-server stopped before returning the usage limits."
+            return "Codex app-server stopped unexpectedly."
         case .malformedResponse:
             return "Codex app-server returned a response that CodexMenuBar could not understand."
         case let .transportWriteFailed(stage, message):
@@ -38,81 +44,160 @@ public enum CodexAppServerError: LocalizedError, Equatable {
 }
 
 public final class CodexAppServerClient: @unchecked Sendable {
-    private let initializeTimeout: TimeInterval
-    private let requestTimeout: TimeInterval
+    public typealias UsageHandler = @Sendable (CodexUsageSummary) -> Void
 
-    public init(
-        initializeTimeout: TimeInterval = 15,
-        requestTimeout: TimeInterval = 30
-    ) {
+    private let initializeTimeout: TimeInterval
+    private let stateLock = NSLock()
+    private let writeLock = NSLock()
+
+    private var sessionActive = false
+    private var process: Process?
+    private var inputHandle: FileHandle?
+    private var initialized = false
+    private var nextRequestID = 3
+
+    public init(initializeTimeout: TimeInterval = 15) {
         self.initializeTimeout = initializeTimeout
-        self.requestTimeout = requestTimeout
 
         #if canImport(Darwin)
         signal(SIGPIPE, SIG_IGN)
         #endif
     }
 
-    public func fetchUsage() async throws -> CodexUsageSummary {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    continuation.resume(returning: try self.fetchUsageSynchronously())
-                } catch {
-                    continuation.resume(throwing: error)
+    public func runSession(onUsage: @escaping UsageHandler) async throws {
+        try await withTaskCancellationHandler(
+            operation: {
+                try await withCheckedThrowingContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            try self.runSessionSynchronously(onUsage: onUsage)
+                            continuation.resume(returning: ())
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    }
                 }
+            },
+            onCancel: {
+                self.stop()
             }
+        )
+    }
+
+    public func requestRefresh() throws {
+        let handle: FileHandle
+        let requestID: Int
+
+        stateLock.lock()
+        guard initialized, let currentHandle = inputHandle else {
+            stateLock.unlock()
+            throw CodexAppServerError.notConnected
+        }
+
+        handle = currentHandle
+        requestID = nextRequestID
+        nextRequestID += 1
+        stateLock.unlock()
+
+        try sendMessages(
+            [[
+                "method": "account/rateLimits/read",
+                "id": requestID
+            ]],
+            stage: "account/rateLimits/read",
+            to: handle
+        )
+
+        #if DEBUG
+        debugLog("Requested rate-limit refresh id=\(requestID)")
+        #endif
+    }
+
+    public func stop() {
+        let currentProcess: Process?
+        let currentInput: FileHandle?
+
+        stateLock.lock()
+        initialized = false
+        currentProcess = process
+        currentInput = inputHandle
+        inputHandle = nil
+        stateLock.unlock()
+
+        try? currentInput?.close()
+
+        if let currentProcess, currentProcess.isRunning {
+            currentProcess.terminate()
         }
     }
 
-    private func fetchUsageSynchronously() throws -> CodexUsageSummary {
-        let executable = try resolveCodexExecutable()
+    private func runSessionSynchronously(
+        onUsage: @escaping UsageHandler
+    ) throws {
+        try reserveSession()
+
+        let executable: String
+        do {
+            executable = try resolveCodexExecutable()
+        } catch {
+            releaseSessionReservation()
+            throw error
+        }
 
         #if DEBUG
         debugLog("Using Codex executable: \(executable)")
         #endif
 
-        let process = Process()
+        let child = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
 
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["app-server", "--stdio"]
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.standardError
+        child.executableURL = URL(fileURLWithPath: executable)
+        child.arguments = ["app-server", "--stdio"]
+        child.standardInput = inputPipe
+        child.standardOutput = outputPipe
+        child.standardError = FileHandle.standardError
 
         do {
-            try process.run()
+            try child.run()
         } catch {
+            releaseSessionReservation()
             throw CodexAppServerError.codexNotFound
         }
 
+        registerSession(
+            process: child,
+            inputHandle: inputPipe.fileHandleForWriting
+        )
+
         defer {
-            try? inputPipe.fileHandleForWriting.close()
-            if process.isRunning {
-                process.terminate()
-            }
+            cleanupSession(
+                process: child,
+                inputHandle: inputPipe.fileHandleForWriting
+            )
         }
 
         let reader = POSIXLineReader(
             fileDescriptor: outputPipe.fileHandleForReading.fileDescriptor
         )
 
-        let initializeMessage: [String: Any] = [
-            "method": "initialize",
-            "id": 1,
-            "params": [
-                "clientInfo": [
-                    "name": "codex-menubar",
-                    "title": "CodexMenuBar",
-                    "version": "0.1.0"
-                ]
-            ]
-        ]
-
         try sendMessages(
-            [initializeMessage],
+            [[
+                "method": "initialize",
+                "id": 1,
+                "params": [
+                    "clientInfo": [
+                        "name": "codex-menubar",
+                        "title": "CodexMenuBar",
+                        "version": "0.1.0"
+                    ],
+                    "capabilities": [
+                        "optOutNotificationMethods": [
+                            "remoteControl/status/changed"
+                        ]
+                    ]
+                ]
+            ]],
             stage: "initialize",
             to: inputPipe.fileHandleForWriting
         )
@@ -133,56 +218,182 @@ public final class CodexAppServerClient: @unchecked Sendable {
         debugLog("App-server initialized")
         #endif
 
-        let initializedNotification: [String: Any] = [
-            "method": "initialized"
-        ]
-        let rateLimitsRequest: [String: Any] = [
-            "method": "account/rateLimits/read",
-            "id": 2
-        ]
-
-        // Send the post-initialize handshake notification and the rate-limit
-        // request in one JSONL write. The server still receives two ordered
-        // JSON-RPC messages, matching the successful manual terminal flow.
         try sendMessages(
-            [initializedNotification, rateLimitsRequest],
-            stage: "initialized + account/rateLimits/read",
+            [
+                ["method": "initialized"],
+                [
+                    "method": "account/rateLimits/read",
+                    "id": 2
+                ]
+            ],
+            stage: "initialized + initial account/rateLimits/read",
             to: inputPipe.fileHandleForWriting
         )
 
+        markInitialized(
+            process: child,
+            inputHandle: inputPipe.fileHandleForWriting
+        )
+
         #if DEBUG
-        debugLog("Sent initialized + account/rateLimits/read")
-        debugLog("Waiting for account/rateLimits/read…")
+        debugLog("Persistent app-server session ready")
         #endif
 
-        let rateLimitsData = try readResponse(
-            id: 2,
-            from: reader,
-            timeout: requestTimeout,
-            stage: "account/rateLimits/read"
-        )
+        while true {
+            let line: Data
 
-        let response = try JSONDecoder().decode(
-            RPCResponse<RateLimitsResponse>.self,
-            from: rateLimitsData
-        )
+            do {
+                guard let nextLine = try reader.readLine(
+                    timeout: nil,
+                    timeoutStage: "app-server event"
+                ) else {
+                    throw CodexAppServerError.unexpectedEndOfOutput
+                }
+                line = nextLine
+            } catch let error as CodexAppServerError {
+                throw error
+            } catch {
+                throw CodexAppServerError.transportReadFailed(
+                    stage: "app-server event",
+                    message: detailedErrorDescription(error)
+                )
+            }
 
-        if let error = response.error {
-            throw CodexAppServerError.rpcError(
-                code: error.code,
-                message: error.message
+            guard !line.isEmpty else {
+                continue
+            }
+
+            try handleIncomingMessage(
+                line,
+                onUsage: onUsage
             )
         }
+    }
 
-        guard let result = response.result else {
+    private func handleIncomingMessage(
+        _ data: Data,
+        onUsage: UsageHandler
+    ) throws {
+        guard
+            let object = try JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
+        else {
             throw CodexAppServerError.malformedResponse
         }
 
+        if let error = object["error"] as? [String: Any] {
+            throw CodexAppServerError.rpcError(
+                code: (error["code"] as? NSNumber)?.intValue,
+                message: error["message"] as? String ?? "Unknown error"
+            )
+        }
+
+        if let responseID = object["id"] as? NSNumber {
+            #if DEBUG
+            debugLog("Received JSON-RPC response id=\(responseID.intValue)")
+            #endif
+
+            if let response = try? JSONDecoder().decode(
+                RPCResponse<RateLimitsResponse>.self,
+                from: data
+            ), let result = response.result {
+                onUsage(CodexUsageSummary(response: result))
+            }
+
+            return
+        }
+
+        guard let method = object["method"] as? String else {
+            return
+        }
+
         #if DEBUG
-        debugLog("Received Codex rate limits")
+        debugLog("Received notification \(method)")
         #endif
 
-        return CodexUsageSummary(response: result)
+        guard method == "account/rateLimits/updated" else {
+            return
+        }
+
+        let notification = try JSONDecoder().decode(
+            RateLimitsUpdatedNotification.self,
+            from: data
+        )
+
+        onUsage(
+            CodexUsageSummary(
+                response: RateLimitsResponse(
+                    rateLimits: notification.params.rateLimits,
+                    rateLimitsByLimitId: nil
+                )
+            )
+        )
+    }
+
+    private func reserveSession() throws {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+
+        guard !sessionActive else {
+            throw CodexAppServerError.sessionAlreadyRunning
+        }
+
+        sessionActive = true
+        initialized = false
+        nextRequestID = 3
+    }
+
+    private func releaseSessionReservation() {
+        stateLock.lock()
+        sessionActive = false
+        initialized = false
+        stateLock.unlock()
+    }
+
+    private func registerSession(
+        process: Process,
+        inputHandle: FileHandle
+    ) {
+        stateLock.lock()
+        self.process = process
+        self.inputHandle = inputHandle
+        stateLock.unlock()
+    }
+
+    private func markInitialized(
+        process: Process,
+        inputHandle: FileHandle
+    ) {
+        stateLock.lock()
+
+        if self.process === process,
+           self.inputHandle === inputHandle {
+            initialized = true
+        }
+
+        stateLock.unlock()
+    }
+
+    private func cleanupSession(
+        process: Process,
+        inputHandle: FileHandle
+    ) {
+        try? inputHandle.close()
+
+        if process.isRunning {
+            process.terminate()
+        }
+
+        stateLock.lock()
+
+        if self.process === process {
+            self.process = nil
+            self.inputHandle = nil
+            initialized = false
+        }
+
+        sessionActive = false
+        stateLock.unlock()
     }
 
     private func resolveCodexExecutable() throws -> String {
@@ -216,7 +427,9 @@ public final class CodexAppServerClient: @unchecked Sendable {
         ])
 
         let nvmVersions = "\(home)/.nvm/versions/node"
-        if let versions = try? fileManager.contentsOfDirectory(atPath: nvmVersions) {
+        if let versions = try? fileManager.contentsOfDirectory(
+            atPath: nvmVersions
+        ) {
             candidates.append(
                 contentsOf: versions
                     .sorted(by: >)
@@ -238,6 +451,9 @@ public final class CodexAppServerClient: @unchecked Sendable {
         stage: String,
         to handle: FileHandle
     ) throws {
+        writeLock.lock()
+        defer { writeLock.unlock() }
+
         do {
             var payload = Data()
 
@@ -258,20 +474,17 @@ public final class CodexAppServerClient: @unchecked Sendable {
     }
 
     private func readResponse(
-        id expectedId: Int,
+        id expectedID: Int,
         from reader: POSIXLineReader,
         timeout: TimeInterval,
         stage: String
     ) throws -> Data {
-        let deadline = DispatchTime.now().uptimeNanoseconds
-            + UInt64(timeout * 1_000_000_000)
-
         while true {
             let line: Data
 
             do {
                 guard let nextLine = try reader.readLine(
-                    deadlineNanoseconds: deadline,
+                    timeout: timeout,
                     timeoutStage: stage
                 ) else {
                     throw CodexAppServerError.unexpectedEndOfOutput
@@ -297,16 +510,8 @@ public final class CodexAppServerClient: @unchecked Sendable {
                 throw CodexAppServerError.malformedResponse
             }
 
-            #if DEBUG
-            if let responseId = object["id"] as? NSNumber {
-                debugLog("Received JSON-RPC response id=\(responseId.intValue)")
-            } else if let method = object["method"] as? String {
-                debugLog("Received notification \(method)")
-            }
-            #endif
-
             if let id = object["id"] as? NSNumber,
-               id.intValue == expectedId {
+               id.intValue == expectedID {
                 return line
             }
         }
@@ -354,6 +559,15 @@ private struct RPCError: Decodable {
     let message: String
 }
 
+private struct RateLimitsUpdatedNotification: Decodable {
+    let method: String
+    let params: RateLimitsUpdatedParams
+}
+
+private struct RateLimitsUpdatedParams: Decodable {
+    let rateLimits: RateLimitSnapshot
+}
+
 private final class POSIXLineReader {
     private let fileDescriptor: Int32
     private var buffer = Data()
@@ -363,9 +577,14 @@ private final class POSIXLineReader {
     }
 
     func readLine(
-        deadlineNanoseconds: UInt64,
+        timeout: TimeInterval?,
         timeoutStage: String
     ) throws -> Data? {
+        let deadlineNanoseconds = timeout.map {
+            DispatchTime.now().uptimeNanoseconds
+                + UInt64($0 * 1_000_000_000)
+        }
+
         while true {
             if let newlineIndex = buffer.firstIndex(of: 0x0A) {
                 let line = buffer[..<newlineIndex]
@@ -373,19 +592,30 @@ private final class POSIXLineReader {
                 return Data(line)
             }
 
-            let now = DispatchTime.now().uptimeNanoseconds
+            let timeoutMilliseconds: Int32
 
-            guard now < deadlineNanoseconds else {
-                throw CodexAppServerError.timedOut(stage: timeoutStage)
+            if let deadlineNanoseconds {
+                let now = DispatchTime.now().uptimeNanoseconds
+
+                guard now < deadlineNanoseconds else {
+                    throw CodexAppServerError.timedOut(
+                        stage: timeoutStage
+                    )
+                }
+
+                let remainingMilliseconds = max(
+                    1,
+                    (deadlineNanoseconds - now) / 1_000_000
+                )
+                timeoutMilliseconds = Int32(
+                    min(
+                        UInt64(Int32.max),
+                        remainingMilliseconds
+                    )
+                )
+            } else {
+                timeoutMilliseconds = -1
             }
-
-            let remainingMilliseconds = max(
-                1,
-                (deadlineNanoseconds - now) / 1_000_000
-            )
-            let timeoutMilliseconds = Int32(
-                min(UInt64(Int32.max), remainingMilliseconds)
-            )
 
             var descriptor = pollfd(
                 fd: fileDescriptor,
@@ -400,7 +630,9 @@ private final class POSIXLineReader {
             )
 
             if pollResult == 0 {
-                throw CodexAppServerError.timedOut(stage: timeoutStage)
+                throw CodexAppServerError.timedOut(
+                    stage: timeoutStage
+                )
             }
 
             if pollResult < 0 {

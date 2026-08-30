@@ -17,10 +17,10 @@ CodexMenuBar keeps that information directly in the macOS menu bar with a lightw
 The menu bar shows a compact summary such as:
 
 ```text
-82%  W26%
+13% · W73%
 ```
 
-Click it to see the detailed five-hour and weekly usage, reset times, plan, credits, and refresh status.
+The percentages represent **quota remaining**, matching the Codex UI. Click the item to see detailed five-hour and weekly usage, reset times, plan, credits, and refresh status.
 
 ## v0.1 features
 
@@ -31,7 +31,9 @@ Click it to see the detailed five-hour and weekly usage, reset times, plan, cred
 - [x] Display reset countdowns
 - [x] Display available credits when reported by Codex
 - [x] Manual refresh
-- [x] Automatic refresh every 60 seconds
+- [x] Live updates from `account/rateLimits/updated`
+- [x] Persistent local app-server session
+- [x] Five-minute fallback resync
 - [x] Preserve the last successful snapshot when a refresh fails
 - [x] Handle missing quota windows gracefully
 - [x] Apple Silicon and Intel-compatible Swift source
@@ -67,7 +69,7 @@ CodexMenuBar talks to the locally installed Codex CLI through the Codex app serv
 codex app-server --stdio
 ```
 
-The app performs the JSON-RPC initialization handshake and calls:
+The app performs the JSON-RPC initialization handshake once, keeps that local process alive, and requests an initial snapshot with:
 
 ```text
 account/rateLimits/read
@@ -99,6 +101,8 @@ It identifies quota windows by duration instead of assuming that `primary` or `s
 
 If Codex does not report one of those windows, the popover shows it as unavailable rather than fabricating a value.
 
+After the initial snapshot, CodexMenuBar listens for `account/rateLimits/updated` notifications and updates the UI immediately. Manual refreshes reuse the same connection, and a lightweight `account/rateLimits/read` runs every five minutes as a fallback resync. If the app-server exits, CodexMenuBar restarts it with exponential backoff.
+
 ## Privacy
 
 CodexMenuBar runs locally on your Mac.
@@ -119,8 +123,8 @@ CodexAppServerClient
         ▼
 codex app-server --stdio
         │
-        ▼
-account/rateLimits/read
+        ├── account/rateLimits/read
+        └── account/rateLimits/updated
 ```
 
 The repository is split into two Swift targets:
@@ -153,7 +157,6 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the complete beginner-friendly de
 
 ### v0.2 candidates
 
-- [ ] Subscribe to `account/rateLimits/updated` instead of relying primarily on polling
 - [ ] Configurable menu bar display
 - [ ] Used vs. remaining percentage mode
 - [ ] Usage threshold notifications
@@ -165,7 +168,7 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the complete beginner-friendly de
 ## Known limitations
 
 - v0.1 is currently a source/development build rather than a signed packaged release.
-- Each refresh starts a short-lived local Codex app-server process.
+- CodexMenuBar keeps one local `codex app-server` process alive while the app is running and reconnects automatically if it exits.
 - The Codex app-server protocol can evolve between Codex CLI releases.
 - Some accounts may temporarily receive only one quota window from Codex.
 

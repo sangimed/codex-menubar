@@ -150,4 +150,46 @@ final class RateLimitModelsTests: XCTestCase {
             0
         )
     }
+    func testPreservesMissingNotificationMetadata() {
+        let previous = CodexUsageSummary(
+            fiveHour: RateLimitWindow(
+                usedPercent: 80,
+                windowDurationMins: 300,
+                resetsAt: 100
+            ),
+            weekly: RateLimitWindow(
+                usedPercent: 20,
+                windowDurationMins: 10_080,
+                resetsAt: 200
+            ),
+            credits: CodexCredits(
+                hasCredits: true,
+                unlimited: false,
+                balance: "616"
+            ),
+            planType: "plus"
+        )
+
+        let notification = CodexUsageSummary(
+            fiveHour: RateLimitWindow(
+                usedPercent: 81,
+                windowDurationMins: 300,
+                resetsAt: 100
+            ),
+            weekly: RateLimitWindow(
+                usedPercent: 21,
+                windowDurationMins: 10_080,
+                resetsAt: 200
+            ),
+            credits: nil,
+            planType: nil
+        )
+
+        let merged = notification.preservingMetadata(from: previous)
+
+        XCTAssertEqual(merged.fiveHour?.usedPercent, 81)
+        XCTAssertEqual(merged.weekly?.usedPercent, 21)
+        XCTAssertEqual(merged.credits?.balance, "616")
+        XCTAssertEqual(merged.planType, "plus")
+    }
 }
