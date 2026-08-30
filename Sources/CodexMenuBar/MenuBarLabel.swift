@@ -3,37 +3,68 @@ import SwiftUI
 
 struct MenuBarLabel: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject var preferences:
+        PreferencesStore
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "gauge.with.dots.needle.67percent")
-            Text(menuBarText)
-                .monospacedDigit()
+            Image(
+                systemName:
+                    "gauge.with.dots.needle.67percent"
+            )
+
+            if !menuBarText.isEmpty {
+                Text(menuBarText)
+                    .monospacedDigit()
+            }
         }
-        .help(store.errorMessage ?? "Codex usage remaining")
+        .help(
+            store.errorMessage
+                ?? "Codex usage \(preferences.primaryLabel)"
+        )
     }
 
     private var menuBarText: String {
         guard let summary = store.summary else {
-            return "Codex"
+            return preferences
+                .menuBarDisplayMode
+                == .iconOnly
+                ? ""
+                : "Codex"
         }
 
-        switch (summary.fiveHour, summary.weekly) {
-        case let (fiveHour?, weekly?):
-            return "\(percentage(fiveHour.remainingPercent))% · W\(percentage(weekly.remainingPercent))%"
+        let fiveHour =
+            summary.fiveHour.map {
+                "\(percentage(preferences.percentage(for: $0)))%"
+            }
 
-        case let (fiveHour?, nil):
-            return "\(percentage(fiveHour.remainingPercent))%"
+        let weekly =
+            summary.weekly.map {
+                "W\(percentage(preferences.percentage(for: $0)))%"
+            }
 
-        case let (nil, weekly?):
-            return "W\(percentage(weekly.remainingPercent))%"
+        switch preferences
+            .menuBarDisplayMode
+        {
+        case .both:
+            return [fiveHour, weekly]
+                .compactMap { $0 }
+                .joined(separator: " · ")
 
-        case (nil, nil):
-            return "Codex"
+        case .fiveHour:
+            return fiveHour ?? "—"
+
+        case .weekly:
+            return weekly ?? "W—"
+
+        case .iconOnly:
+            return ""
         }
     }
 
-    private func percentage(_ value: Double) -> Int {
+    private func percentage(
+        _ value: Double
+    ) -> Int {
         Int(value.rounded())
     }
 }
