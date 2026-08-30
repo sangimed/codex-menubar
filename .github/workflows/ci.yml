@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feat/v0.2
   pull_request:
 
 jobs:
@@ -22,3 +23,12 @@ jobs:
 
       - name: Test
         run: swift test
+
+      - name: Build app bundle
+        run: make app
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexMenuBar-macOS
+          path: dist/CodexMenuBar.app
