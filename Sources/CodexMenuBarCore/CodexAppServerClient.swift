@@ -416,11 +416,13 @@ private final class POSIXLineReader {
 
             if descriptor.revents & Int16(POLLIN) != 0 {
                 var bytes = [UInt8](repeating: 0, count: 4_096)
-                let bytesRead = read(
-                    fileDescriptor,
-                    &bytes,
-                    bytes.count
-                )
+                let bytesRead = bytes.withUnsafeMutableBytes { rawBuffer in
+                    read(
+                        fileDescriptor,
+                        rawBuffer.baseAddress,
+                        rawBuffer.count
+                    )
+                }
 
                 if bytesRead > 0 {
                     buffer.append(
