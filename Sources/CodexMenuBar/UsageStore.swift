@@ -1,4 +1,5 @@
 import CodexMenuBarCore
+import Combine
 import Foundation
 
 @MainActor

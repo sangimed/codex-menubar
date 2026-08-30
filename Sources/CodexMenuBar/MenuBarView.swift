@@ -98,13 +98,12 @@ struct MenuBarView: View {
     private var footer: some View {
         HStack {
             if let lastUpdated = store.lastUpdated {
-                Text("Updated ")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                +
-                Text(lastUpdated, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 3) {
+                    Text("Updated")
+                    Text(lastUpdated, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             } else {
                 Text("Not updated yet")
                     .font(.caption)
@@ -168,13 +167,12 @@ private struct LimitCard: View {
 
                     Spacer()
 
-                    Text("Resets ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    +
-                    Text(window.resetDate, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Text("Resets")
+                        Text(window.resetDate, style: .relative)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             } else {
                 Text("Not currently reported by Codex")
