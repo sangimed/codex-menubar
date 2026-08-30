@@ -66,7 +66,41 @@ The release workflow is:
 .github/workflows/release.yml
 ```
 
-It runs when a tag beginning with `v` is pushed.
+It can be started in two ways.
+
+### Option A — Run it manually from GitHub Actions
+
+1. Open **Actions** in the GitHub repository.
+2. Select **Release**.
+3. Click **Run workflow**.
+4. Keep the branch set to **main**.
+5. Enter a version such as `0.2.0` or `0.2.0-beta.1`.
+6. Enable **Publish as a prerelease** if desired.
+7. Click **Run workflow**.
+
+For a manual run, the workflow creates the Git tag automatically if it does not already exist.
+
+A version containing a prerelease suffix such as `-beta.1` is automatically treated as a prerelease even if the checkbox is left disabled.
+
+Stable example:
+
+```text
+version: 0.2.0
+prerelease: false
+```
+
+Beta example:
+
+```text
+version: 0.2.0-beta.1
+prerelease: true
+```
+
+Manual releases are intentionally restricted to `main`.
+
+### Option B — Push a tag
+
+The existing tag-based workflow remains supported.
 
 Stable example:
 
@@ -83,6 +117,8 @@ git push origin v0.2.0-beta.1
 ```
 
 Tags containing a prerelease suffix are published as GitHub prereleases.
+
+Stable releases may update the Homebrew tap when `HOMEBREW_TAP_TOKEN` is configured. Prereleases intentionally skip the Homebrew tap so beta builds do not replace the stable Cask.
 
 The workflow:
 
