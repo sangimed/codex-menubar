@@ -11,6 +11,7 @@ public enum CodexAppServerError: LocalizedError, Equatable {
     case unexpectedEndOfOutput
     case malformedResponse
     case transportWriteFailed(stage: String, message: String)
+    case transportReadFailed(stage: String, message: String)
     case rpcError(code: Int?, message: String)
 
     public var errorDescription: String? {
@@ -25,6 +26,8 @@ public enum CodexAppServerError: LocalizedError, Equatable {
             return "Codex app-server returned a response that CodexMenuBar could not understand."
         case let .transportWriteFailed(stage, message):
             return "Could not send \(stage) to Codex app-server: \(message)"
+        case let .transportReadFailed(stage, message):
+            return "Could not read \(stage) from Codex app-server: \(message)"
         case let .rpcError(code, message):
             if let code {
                 return "Codex app-server error \(code): \(message)"
@@ -39,15 +42,13 @@ public final class CodexAppServerClient: @unchecked Sendable {
     private let requestTimeout: TimeInterval
 
     public init(
-        initializeTimeout: TimeInterval = 60,
-        requestTimeout: TimeInterval = 60
+        initializeTimeout: TimeInterval = 15,
+        requestTimeout: TimeInterval = 30
     ) {
         self.initializeTimeout = initializeTimeout
         self.requestTimeout = requestTimeout
 
         #if canImport(Darwin)
-        // A child process may close stdin before a JSON-RPC write completes.
-        // Ignore SIGPIPE so a closed pipe becomes a normal Swift error.
         signal(SIGPIPE, SIG_IGN)
         #endif
     }
@@ -94,23 +95,24 @@ public final class CodexAppServerClient: @unchecked Sendable {
             }
         }
 
-        let reader = JSONLineReader(handle: outputPipe.fileHandleForReading)
+        let reader = POSIXLineReader(
+            fileDescriptor: outputPipe.fileHandleForReading.fileDescriptor
+        )
 
-        try send(
-            [
-                "method": "initialize",
-                "id": 1,
-                "params": [
-                    "clientInfo": [
-                        "name": "codex-menubar",
-                        "title": "CodexMenuBar",
-                        "version": "0.1.0"
-                    ],
-                    "capabilities": [
-                        "experimentalApi": false
-                    ]
+        let initializeMessage: [String: Any] = [
+            "method": "initialize",
+            "id": 1,
+            "params": [
+                "clientInfo": [
+                    "name": "codex-menubar",
+                    "title": "CodexMenuBar",
+                    "version": "0.1.0"
                 ]
-            ],
+            ]
+        ]
+
+        try sendMessages(
+            [initializeMessage],
             stage: "initialize",
             to: inputPipe.fileHandleForWriting
         )
@@ -131,26 +133,25 @@ public final class CodexAppServerClient: @unchecked Sendable {
         debugLog("App-server initialized")
         #endif
 
-        try send(
-            ["method": "initialized"],
-            stage: "initialized notification",
+        let initializedNotification: [String: Any] = [
+            "method": "initialized"
+        ]
+        let rateLimitsRequest: [String: Any] = [
+            "method": "account/rateLimits/read",
+            "id": 2
+        ]
+
+        // Send the post-initialize handshake notification and the rate-limit
+        // request in one JSONL write. The server still receives two ordered
+        // JSON-RPC messages, matching the successful manual terminal flow.
+        try sendMessages(
+            [initializedNotification, rateLimitsRequest],
+            stage: "initialized + account/rateLimits/read",
             to: inputPipe.fileHandleForWriting
         )
 
         #if DEBUG
-        debugLog("Sent initialized notification")
-        #endif
-
-        try send(
-            [
-                "method": "account/rateLimits/read",
-                "id": 2
-            ],
-            stage: "account/rateLimits/read",
-            to: inputPipe.fileHandleForWriting
-        )
-
-        #if DEBUG
+        debugLog("Sent initialized + account/rateLimits/read")
         debugLog("Waiting for account/rateLimits/read…")
         #endif
 
@@ -232,15 +233,22 @@ public final class CodexAppServerClient: @unchecked Sendable {
         throw CodexAppServerError.codexNotFound
     }
 
-    private func send(
-        _ object: [String: Any],
+    private func sendMessages(
+        _ objects: [[String: Any]],
         stage: String,
         to handle: FileHandle
     ) throws {
         do {
-            var data = try JSONSerialization.data(withJSONObject: object)
-            data.append(0x0A)
-            try handle.write(contentsOf: data)
+            var payload = Data()
+
+            for object in objects {
+                payload.append(
+                    try JSONSerialization.data(withJSONObject: object)
+                )
+                payload.append(0x0A)
+            }
+
+            try handle.write(contentsOf: payload)
         } catch {
             throw CodexAppServerError.transportWriteFailed(
                 stage: stage,
@@ -251,7 +259,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
     private func readResponse(
         id expectedId: Int,
-        from reader: JSONLineReader,
+        from reader: POSIXLineReader,
         timeout: TimeInterval,
         stage: String
     ) throws -> Data {
@@ -259,8 +267,23 @@ public final class CodexAppServerClient: @unchecked Sendable {
             + UInt64(timeout * 1_000_000_000)
 
         while true {
-            guard let line = try reader.readLine(deadlineNanoseconds: deadline) else {
-                throw CodexAppServerError.unexpectedEndOfOutput
+            let line: Data
+
+            do {
+                guard let nextLine = try reader.readLine(
+                    deadlineNanoseconds: deadline,
+                    timeoutStage: stage
+                ) else {
+                    throw CodexAppServerError.unexpectedEndOfOutput
+                }
+                line = nextLine
+            } catch let error as CodexAppServerError {
+                throw error
+            } catch {
+                throw CodexAppServerError.transportReadFailed(
+                    stage: stage,
+                    message: detailedErrorDescription(error)
+                )
             }
 
             guard !line.isEmpty else {
@@ -268,25 +291,31 @@ public final class CodexAppServerClient: @unchecked Sendable {
             }
 
             guard
-                let object = try JSONSerialization.jsonObject(with: line) as? [String: Any]
+                let object = try JSONSerialization.jsonObject(with: line)
+                    as? [String: Any]
             else {
                 throw CodexAppServerError.malformedResponse
             }
 
+            #if DEBUG
+            if let responseId = object["id"] as? NSNumber {
+                debugLog("Received JSON-RPC response id=\(responseId.intValue)")
+            } else if let method = object["method"] as? String {
+                debugLog("Received notification \(method)")
+            }
+            #endif
+
             if let id = object["id"] as? NSNumber,
                id.intValue == expectedId {
                 return line
-            }
-
-            if DispatchTime.now().uptimeNanoseconds >= deadline {
-                throw CodexAppServerError.timedOut(stage: stage)
             }
         }
     }
 
     private func throwIfRPCError(in data: Data) throws {
         guard
-            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let object = try JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
         else {
             throw CodexAppServerError.malformedResponse
         }
@@ -303,15 +332,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
     private func detailedErrorDescription(_ error: Error) -> String {
         let nsError = error as NSError
-        var parts = [nsError.localizedDescription]
-
-        if nsError.domain == NSPOSIXErrorDomain {
-            parts.append("POSIX errno \(nsError.code)")
-        } else {
-            parts.append("\(nsError.domain) \(nsError.code)")
-        }
-
-        return parts.joined(separator: " (") + String(repeating: ")", count: max(0, parts.count - 1))
+        return "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
     }
 
     #if DEBUG
@@ -333,15 +354,18 @@ private struct RPCError: Decodable {
     let message: String
 }
 
-private final class JSONLineReader {
-    private let handle: FileHandle
+private final class POSIXLineReader {
+    private let fileDescriptor: Int32
     private var buffer = Data()
 
-    init(handle: FileHandle) {
-        self.handle = handle
+    init(fileDescriptor: Int32) {
+        self.fileDescriptor = fileDescriptor
     }
 
-    func readLine(deadlineNanoseconds: UInt64) throws -> Data? {
+    func readLine(
+        deadlineNanoseconds: UInt64,
+        timeoutStage: String
+    ) throws -> Data? {
         while true {
             if let newlineIndex = buffer.firstIndex(of: 0x0A) {
                 let line = buffer[..<newlineIndex]
@@ -350,31 +374,36 @@ private final class JSONLineReader {
             }
 
             let now = DispatchTime.now().uptimeNanoseconds
+
             guard now < deadlineNanoseconds else {
-                throw CodexAppServerError.timedOut(stage: "response")
+                throw CodexAppServerError.timedOut(stage: timeoutStage)
             }
 
-            let remainingNanoseconds = deadlineNanoseconds - now
+            let remainingMilliseconds = max(
+                1,
+                (deadlineNanoseconds - now) / 1_000_000
+            )
             let timeoutMilliseconds = Int32(
-                min(
-                    UInt64(Int32.max),
-                    max(1, remainingNanoseconds / 1_000_000)
-                )
+                min(UInt64(Int32.max), remainingMilliseconds)
             )
 
             var descriptor = pollfd(
-                fd: handle.fileDescriptor,
+                fd: fileDescriptor,
                 events: Int16(POLLIN),
                 revents: 0
             )
 
-            let result = poll(&descriptor, 1, timeoutMilliseconds)
+            let pollResult = poll(
+                &descriptor,
+                1,
+                timeoutMilliseconds
+            )
 
-            if result == 0 {
-                throw CodexAppServerError.timedOut(stage: "response")
+            if pollResult == 0 {
+                throw CodexAppServerError.timedOut(stage: timeoutStage)
             }
 
-            if result < 0 {
+            if pollResult < 0 {
                 if errno == EINTR {
                     continue
                 }
@@ -386,9 +415,22 @@ private final class JSONLineReader {
             }
 
             if descriptor.revents & Int16(POLLIN) != 0 {
-                guard let chunk = try handle.read(upToCount: 4_096),
-                      !chunk.isEmpty else {
-                    guard !buffer.isEmpty else {
+                var bytes = [UInt8](repeating: 0, count: 4_096)
+                let bytesRead = read(
+                    fileDescriptor,
+                    &bytes,
+                    bytes.count
+                )
+
+                if bytesRead > 0 {
+                    buffer.append(
+                        contentsOf: bytes.prefix(Int(bytesRead))
+                    )
+                    continue
+                }
+
+                if bytesRead == 0 {
+                    if buffer.isEmpty {
                         return nil
                     }
 
@@ -397,12 +439,18 @@ private final class JSONLineReader {
                     return line
                 }
 
-                buffer.append(chunk)
-                continue
+                if errno == EINTR {
+                    continue
+                }
+
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(errno)
+                )
             }
 
             if descriptor.revents & Int16(POLLHUP) != 0 {
-                guard !buffer.isEmpty else {
+                if buffer.isEmpty {
                     return nil
                 }
 
