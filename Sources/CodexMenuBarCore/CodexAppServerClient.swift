@@ -3,10 +3,9 @@ import Foundation
 import Darwin
 #endif
 
-
 public enum CodexAppServerError: LocalizedError, Equatable {
     case codexNotFound
-    case timedOut
+    case timedOut(stage: String)
     case unexpectedEndOfOutput
     case malformedResponse
     case rpcError(code: Int?, message: String)
@@ -15,8 +14,8 @@ public enum CodexAppServerError: LocalizedError, Equatable {
         switch self {
         case .codexNotFound:
             return "Codex CLI was not found. Install Codex or set CODEX_EXECUTABLE to its full path."
-        case .timedOut:
-            return "Codex app-server did not respond in time."
+        case let .timedOut(stage):
+            return "Codex app-server timed out while waiting for \(stage)."
         case .unexpectedEndOfOutput:
             return "Codex app-server stopped before returning the usage limits."
         case .malformedResponse:
@@ -31,10 +30,15 @@ public enum CodexAppServerError: LocalizedError, Equatable {
 }
 
 public final class CodexAppServerClient: @unchecked Sendable {
-    private let timeout: TimeInterval
+    private let initializeTimeout: TimeInterval
+    private let requestTimeout: TimeInterval
 
-    public init(timeout: TimeInterval = 10) {
-        self.timeout = timeout
+    public init(
+        initializeTimeout: TimeInterval = 15,
+        requestTimeout: TimeInterval = 30
+    ) {
+        self.initializeTimeout = initializeTimeout
+        self.requestTimeout = requestTimeout
 
         #if os(macOS)
         // A child process may close stdin before a JSON-RPC write completes.
@@ -59,6 +63,10 @@ public final class CodexAppServerClient: @unchecked Sendable {
     private func fetchUsageSynchronously() throws -> CodexUsageSummary {
         let executable = try resolveCodexExecutable()
 
+        #if DEBUG
+        debugLog("Using Codex executable: \(executable)")
+        #endif
+
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
@@ -67,8 +75,8 @@ public final class CodexAppServerClient: @unchecked Sendable {
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-        // Keep Codex diagnostics visible during development. This is
-        // especially useful if app-server exits and closes its stdin pipe.
+
+        // Keep Codex diagnostics visible during development.
         process.standardError = FileHandle.standardError
 
         do {
@@ -77,22 +85,8 @@ public final class CodexAppServerClient: @unchecked Sendable {
             throw CodexAppServerError.codexNotFound
         }
 
-        let timeoutState = TimeoutState()
-        let timeoutWorkItem = DispatchWorkItem {
-            timeoutState.markTimedOut()
-            if process.isRunning {
-                process.terminate()
-            }
-        }
-
-        DispatchQueue.global(qos: .utility).asyncAfter(
-            deadline: .now() + timeout,
-            execute: timeoutWorkItem
-        )
-
         defer {
-            timeoutWorkItem.cancel()
-            inputPipe.fileHandleForWriting.closeFile()
+            try? inputPipe.fileHandleForWriting.close()
             if process.isRunning {
                 process.terminate()
             }
@@ -100,68 +94,87 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
         let reader = JSONLineReader(handle: outputPipe.fileHandleForReading)
 
-        do {
-            try send(
-                [
-                    "method": "initialize",
-                    "id": 1,
-                    "params": [
-                        "clientInfo": [
-                            "name": "codex-menubar",
-                            "version": "0.1.0"
-                        ]
+        try send(
+            [
+                "method": "initialize",
+                "id": 1,
+                "params": [
+                    "clientInfo": [
+                        "name": "codex-menubar",
+                        "title": "CodexMenuBar",
+                        "version": "0.1.0"
+                    ],
+                    "capabilities": [
+                        "experimentalApi": false
                     ]
-                ],
-                to: inputPipe.fileHandleForWriting
+                ]
+            ],
+            to: inputPipe.fileHandleForWriting
+        )
+
+        #if DEBUG
+        debugLog("Waiting for app-server initialization…")
+        #endif
+
+        let initializeResponse = try readResponse(
+            id: 1,
+            from: reader,
+            process: process,
+            timeout: initializeTimeout,
+            stage: "app-server initialization"
+        )
+        try throwIfRPCError(in: initializeResponse)
+
+        #if DEBUG
+        debugLog("App-server initialized")
+        #endif
+
+        try send(
+            ["method": "initialized"],
+            to: inputPipe.fileHandleForWriting
+        )
+
+        try send(
+            [
+                "method": "account/rateLimits/read",
+                "id": 2
+            ],
+            to: inputPipe.fileHandleForWriting
+        )
+
+        #if DEBUG
+        debugLog("Waiting for account/rateLimits/read…")
+        #endif
+
+        let rateLimitsData = try readResponse(
+            id: 2,
+            from: reader,
+            process: process,
+            timeout: requestTimeout,
+            stage: "account/rateLimits/read"
+        )
+
+        let response = try JSONDecoder().decode(
+            RPCResponse<RateLimitsResponse>.self,
+            from: rateLimitsData
+        )
+
+        if let error = response.error {
+            throw CodexAppServerError.rpcError(
+                code: error.code,
+                message: error.message
             )
-
-            let initializeResponse = try readResponse(
-                id: 1,
-                from: reader
-            )
-            try throwIfRPCError(in: initializeResponse)
-
-            try send(
-                ["method": "initialized"],
-                to: inputPipe.fileHandleForWriting
-            )
-
-            try send(
-                [
-                    "method": "account/rateLimits/read",
-                    "id": 2
-                ],
-                to: inputPipe.fileHandleForWriting
-            )
-
-            let rateLimitsData = try readResponse(
-                id: 2,
-                from: reader
-            )
-
-            let response = try JSONDecoder().decode(
-                RPCResponse<RateLimitsResponse>.self,
-                from: rateLimitsData
-            )
-
-            if let error = response.error {
-                throw CodexAppServerError.rpcError(
-                    code: error.code,
-                    message: error.message
-                )
-            }
-
-            guard let result = response.result else {
-                throw CodexAppServerError.malformedResponse
-            }
-
-            return CodexUsageSummary(response: result)
-        } catch {
-            if timeoutState.didTimeOut {
-                throw CodexAppServerError.timedOut
-            }
-            throw error
         }
+
+        guard let result = response.result else {
+            throw CodexAppServerError.malformedResponse
+        }
+
+        #if DEBUG
+        debugLog("Received Codex rate limits")
+        #endif
+
+        return CodexUsageSummary(response: result)
     }
 
     private func resolveCodexExecutable() throws -> String {
@@ -223,23 +236,54 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
     private func readResponse(
         id expectedId: Int,
-        from reader: JSONLineReader
+        from reader: JSONLineReader,
+        process: Process,
+        timeout: TimeInterval,
+        stage: String
     ) throws -> Data {
-        while let line = try reader.readLine() {
-            guard !line.isEmpty else {
-                continue
+        let timeoutState = TimeoutState()
+        let timeoutWorkItem = DispatchWorkItem {
+            timeoutState.markTimedOut()
+            if process.isRunning {
+                process.terminate()
             }
+        }
 
-            guard
-                let object = try JSONSerialization.jsonObject(with: line) as? [String: Any]
-            else {
-                throw CodexAppServerError.malformedResponse
-            }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + timeout,
+            execute: timeoutWorkItem
+        )
 
-            if let id = object["id"] as? NSNumber,
-               id.intValue == expectedId {
-                return line
+        defer {
+            timeoutWorkItem.cancel()
+        }
+
+        do {
+            while let line = try reader.readLine() {
+                guard !line.isEmpty else {
+                    continue
+                }
+
+                guard
+                    let object = try JSONSerialization.jsonObject(with: line) as? [String: Any]
+                else {
+                    throw CodexAppServerError.malformedResponse
+                }
+
+                if let id = object["id"] as? NSNumber,
+                   id.intValue == expectedId {
+                    return line
+                }
             }
+        } catch {
+            if timeoutState.didTimeOut {
+                throw CodexAppServerError.timedOut(stage: stage)
+            }
+            throw error
+        }
+
+        if timeoutState.didTimeOut {
+            throw CodexAppServerError.timedOut(stage: stage)
         }
 
         throw CodexAppServerError.unexpectedEndOfOutput
@@ -261,6 +305,13 @@ public final class CodexAppServerClient: @unchecked Sendable {
             message: error["message"] as? String ?? "Unknown error"
         )
     }
+
+    #if DEBUG
+    private func debugLog(_ message: String) {
+        let line = "[CodexMenuBar] \(message)\n"
+        try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+    }
+    #endif
 }
 
 private struct RPCResponse<Result: Decodable>: Decodable {
