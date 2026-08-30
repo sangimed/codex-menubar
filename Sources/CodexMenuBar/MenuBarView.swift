@@ -149,7 +149,7 @@ private struct LimitCard: View {
                 Spacer()
 
                 if let window {
-                    Text("\(Int(window.usedPercent.rounded()))% used")
+                    Text("\(Int(window.remainingPercent.rounded()))% remaining")
                         .font(.subheadline.monospacedDigit())
                 }
             }
@@ -161,7 +161,7 @@ private struct LimitCard: View {
                 )
 
                 HStack {
-                    Text("\(Int(window.remainingPercent.rounded()))% remaining")
+                    Text("\(Int(window.usedPercent.rounded()))% used")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
