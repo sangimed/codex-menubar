@@ -267,6 +267,7 @@ make test
 ├── Package.swift
 ├── README.md
 ├── CONTRIBUTING.md
+├── RELEASING.md
 ├── Makefile
 ├── scripts/
 │   ├── check-environment.sh
@@ -370,11 +371,13 @@ This creates:
 dist/CodexMenuBar.app
 ```
 
-To also create a ZIP:
+To also create a versioned ZIP and SHA-256 checksum:
 
 ```bash
-make package
+VERSION=0.2.0 make package
 ```
+
+Release builds are universal macOS binaries by default and contain both `arm64` and `x86_64`. See **[RELEASING.md](RELEASING.md)** for tagged GitHub Releases and Homebrew distribution.
 
 For local development the bundle receives an ad-hoc signature. To sign with a Developer ID:
 
