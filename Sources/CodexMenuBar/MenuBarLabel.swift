@@ -10,7 +10,7 @@ struct MenuBarLabel: View {
             Text(menuBarText)
                 .monospacedDigit()
         }
-        .help(store.errorMessage ?? "Codex usage")
+        .help(store.errorMessage ?? "Codex usage remaining")
     }
 
     private var menuBarText: String {
@@ -20,13 +20,13 @@ struct MenuBarLabel: View {
 
         switch (summary.fiveHour, summary.weekly) {
         case let (fiveHour?, weekly?):
-            return "\(percentage(fiveHour.usedPercent))% · W\(percentage(weekly.usedPercent))%"
+            return "\(percentage(fiveHour.remainingPercent))% · W\(percentage(weekly.remainingPercent))%"
 
         case let (fiveHour?, nil):
-            return "\(percentage(fiveHour.usedPercent))%"
+            return "\(percentage(fiveHour.remainingPercent))%"
 
         case let (nil, weekly?):
-            return "W\(percentage(weekly.usedPercent))%"
+            return "W\(percentage(weekly.remainingPercent))%"
 
         case (nil, nil):
             return "Codex"
