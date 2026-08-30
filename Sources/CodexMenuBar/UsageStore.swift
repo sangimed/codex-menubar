@@ -54,6 +54,11 @@ final class UsageStore: ObservableObject {
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
+
+            #if DEBUG
+            let message = "[CodexMenuBar] \(error.localizedDescription)\n"
+            try? FileHandle.standardError.write(contentsOf: Data(message.utf8))
+            #endif
         }
     }
 
