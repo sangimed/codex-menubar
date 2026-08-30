@@ -1,6 +1,8 @@
 import Foundation
-#if os(macOS)
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
 #endif
 
 public enum CodexAppServerError: LocalizedError, Equatable {
@@ -8,6 +10,7 @@ public enum CodexAppServerError: LocalizedError, Equatable {
     case timedOut(stage: String)
     case unexpectedEndOfOutput
     case malformedResponse
+    case transportWriteFailed(stage: String, message: String)
     case rpcError(code: Int?, message: String)
 
     public var errorDescription: String? {
@@ -20,6 +23,8 @@ public enum CodexAppServerError: LocalizedError, Equatable {
             return "Codex app-server stopped before returning the usage limits."
         case .malformedResponse:
             return "Codex app-server returned a response that CodexMenuBar could not understand."
+        case let .transportWriteFailed(stage, message):
+            return "Could not send \(stage) to Codex app-server: \(message)"
         case let .rpcError(code, message):
             if let code {
                 return "Codex app-server error \(code): \(message)"
@@ -34,16 +39,15 @@ public final class CodexAppServerClient: @unchecked Sendable {
     private let requestTimeout: TimeInterval
 
     public init(
-        initializeTimeout: TimeInterval = 15,
-        requestTimeout: TimeInterval = 30
+        initializeTimeout: TimeInterval = 60,
+        requestTimeout: TimeInterval = 60
     ) {
         self.initializeTimeout = initializeTimeout
         self.requestTimeout = requestTimeout
 
-        #if os(macOS)
+        #if canImport(Darwin)
         // A child process may close stdin before a JSON-RPC write completes.
-        // Ignore SIGPIPE so Foundation can report EPIPE as a Swift error
-        // instead of terminating CodexMenuBar.
+        // Ignore SIGPIPE so a closed pipe becomes a normal Swift error.
         signal(SIGPIPE, SIG_IGN)
         #endif
     }
@@ -75,8 +79,6 @@ public final class CodexAppServerClient: @unchecked Sendable {
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-
-        // Keep Codex diagnostics visible during development.
         process.standardError = FileHandle.standardError
 
         do {
@@ -109,6 +111,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
                     ]
                 ]
             ],
+            stage: "initialize",
             to: inputPipe.fileHandleForWriting
         )
 
@@ -119,7 +122,6 @@ public final class CodexAppServerClient: @unchecked Sendable {
         let initializeResponse = try readResponse(
             id: 1,
             from: reader,
-            process: process,
             timeout: initializeTimeout,
             stage: "app-server initialization"
         )
@@ -131,14 +133,20 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
         try send(
             ["method": "initialized"],
+            stage: "initialized notification",
             to: inputPipe.fileHandleForWriting
         )
+
+        #if DEBUG
+        debugLog("Sent initialized notification")
+        #endif
 
         try send(
             [
                 "method": "account/rateLimits/read",
                 "id": 2
             ],
+            stage: "account/rateLimits/read",
             to: inputPipe.fileHandleForWriting
         )
 
@@ -149,7 +157,6 @@ public final class CodexAppServerClient: @unchecked Sendable {
         let rateLimitsData = try readResponse(
             id: 2,
             from: reader,
-            process: process,
             timeout: requestTimeout,
             stage: "account/rateLimits/read"
         )
@@ -227,66 +234,54 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
     private func send(
         _ object: [String: Any],
+        stage: String,
         to handle: FileHandle
     ) throws {
-        var data = try JSONSerialization.data(withJSONObject: object)
-        data.append(0x0A)
-        try handle.write(contentsOf: data)
+        do {
+            var data = try JSONSerialization.data(withJSONObject: object)
+            data.append(0x0A)
+            try handle.write(contentsOf: data)
+        } catch {
+            throw CodexAppServerError.transportWriteFailed(
+                stage: stage,
+                message: detailedErrorDescription(error)
+            )
+        }
     }
 
     private func readResponse(
         id expectedId: Int,
         from reader: JSONLineReader,
-        process: Process,
         timeout: TimeInterval,
         stage: String
     ) throws -> Data {
-        let timeoutState = TimeoutState()
-        let timeoutWorkItem = DispatchWorkItem {
-            timeoutState.markTimedOut()
-            if process.isRunning {
-                process.terminate()
+        let deadline = DispatchTime.now().uptimeNanoseconds
+            + UInt64(timeout * 1_000_000_000)
+
+        while true {
+            guard let line = try reader.readLine(deadlineNanoseconds: deadline) else {
+                throw CodexAppServerError.unexpectedEndOfOutput
             }
-        }
 
-        DispatchQueue.global(qos: .utility).asyncAfter(
-            deadline: .now() + timeout,
-            execute: timeoutWorkItem
-        )
-
-        defer {
-            timeoutWorkItem.cancel()
-        }
-
-        do {
-            while let line = try reader.readLine() {
-                guard !line.isEmpty else {
-                    continue
-                }
-
-                guard
-                    let object = try JSONSerialization.jsonObject(with: line) as? [String: Any]
-                else {
-                    throw CodexAppServerError.malformedResponse
-                }
-
-                if let id = object["id"] as? NSNumber,
-                   id.intValue == expectedId {
-                    return line
-                }
+            guard !line.isEmpty else {
+                continue
             }
-        } catch {
-            if timeoutState.didTimeOut {
+
+            guard
+                let object = try JSONSerialization.jsonObject(with: line) as? [String: Any]
+            else {
+                throw CodexAppServerError.malformedResponse
+            }
+
+            if let id = object["id"] as? NSNumber,
+               id.intValue == expectedId {
+                return line
+            }
+
+            if DispatchTime.now().uptimeNanoseconds >= deadline {
                 throw CodexAppServerError.timedOut(stage: stage)
             }
-            throw error
         }
-
-        if timeoutState.didTimeOut {
-            throw CodexAppServerError.timedOut(stage: stage)
-        }
-
-        throw CodexAppServerError.unexpectedEndOfOutput
     }
 
     private func throwIfRPCError(in data: Data) throws {
@@ -304,6 +299,19 @@ public final class CodexAppServerClient: @unchecked Sendable {
             code: (error["code"] as? NSNumber)?.intValue,
             message: error["message"] as? String ?? "Unknown error"
         )
+    }
+
+    private func detailedErrorDescription(_ error: Error) -> String {
+        let nsError = error as NSError
+        var parts = [nsError.localizedDescription]
+
+        if nsError.domain == NSPOSIXErrorDomain {
+            parts.append("POSIX errno \(nsError.code)")
+        } else {
+            parts.append("\(nsError.domain) \(nsError.code)")
+        }
+
+        return parts.joined(separator: " (") + String(repeating: ")", count: max(0, parts.count - 1))
     }
 
     #if DEBUG
@@ -325,23 +333,6 @@ private struct RPCError: Decodable {
     let message: String
 }
 
-private final class TimeoutState {
-    private let lock = NSLock()
-    private var timedOut = false
-
-    var didTimeOut: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return timedOut
-    }
-
-    func markTimedOut() {
-        lock.lock()
-        timedOut = true
-        lock.unlock()
-    }
-}
-
 private final class JSONLineReader {
     private let handle: FileHandle
     private var buffer = Data()
@@ -350,7 +341,7 @@ private final class JSONLineReader {
         self.handle = handle
     }
 
-    func readLine() throws -> Data? {
+    func readLine(deadlineNanoseconds: UInt64) throws -> Data? {
         while true {
             if let newlineIndex = buffer.firstIndex(of: 0x0A) {
                 let line = buffer[..<newlineIndex]
@@ -358,8 +349,59 @@ private final class JSONLineReader {
                 return Data(line)
             }
 
-            guard let chunk = try handle.read(upToCount: 4_096),
-                  !chunk.isEmpty else {
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now < deadlineNanoseconds else {
+                throw CodexAppServerError.timedOut(stage: "response")
+            }
+
+            let remainingNanoseconds = deadlineNanoseconds - now
+            let timeoutMilliseconds = Int32(
+                min(
+                    UInt64(Int32.max),
+                    max(1, remainingNanoseconds / 1_000_000)
+                )
+            )
+
+            var descriptor = pollfd(
+                fd: handle.fileDescriptor,
+                events: Int16(POLLIN),
+                revents: 0
+            )
+
+            let result = poll(&descriptor, 1, timeoutMilliseconds)
+
+            if result == 0 {
+                throw CodexAppServerError.timedOut(stage: "response")
+            }
+
+            if result < 0 {
+                if errno == EINTR {
+                    continue
+                }
+
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(errno)
+                )
+            }
+
+            if descriptor.revents & Int16(POLLIN) != 0 {
+                guard let chunk = try handle.read(upToCount: 4_096),
+                      !chunk.isEmpty else {
+                    guard !buffer.isEmpty else {
+                        return nil
+                    }
+
+                    let line = buffer
+                    buffer.removeAll(keepingCapacity: false)
+                    return line
+                }
+
+                buffer.append(chunk)
+                continue
+            }
+
+            if descriptor.revents & Int16(POLLHUP) != 0 {
                 guard !buffer.isEmpty else {
                     return nil
                 }
@@ -369,7 +411,9 @@ private final class JSONLineReader {
                 return line
             }
 
-            buffer.append(chunk)
+            if descriptor.revents & Int16(POLLERR | POLLNVAL) != 0 {
+                throw CodexAppServerError.unexpectedEndOfOutput
+            }
         }
     }
 }
