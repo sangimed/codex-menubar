@@ -129,7 +129,7 @@ struct MenuBarView: View {
         }
 
         if let value = Double(balance) {
-            return String(format: "%.2f", value)
+            return String(format: "%.0f", value)
         }
 
         return balance
@@ -156,7 +156,7 @@ private struct LimitCard: View {
 
             if let window {
                 ProgressView(
-                    value: max(0, min(100, window.usedPercent)),
+                    value: max(0, min(100, window.remainingPercent)),
                     total: 100
                 )
 
