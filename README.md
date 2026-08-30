@@ -6,7 +6,7 @@
 
 A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
 
-> **Status:** v0.1 development build. Run it from source with Swift Package Manager or Xcode.
+> **Status:** v0.2 development branch. Run it from source or build a local `.app` bundle.
 
 ## Why CodexMenuBar?
 
@@ -22,7 +22,7 @@ The menu bar shows a compact summary such as:
 
 The percentages represent **quota remaining**, matching the Codex UI. Click the item to see detailed five-hour and weekly usage, reset times, plan, credits, and refresh status.
 
-## v0.1 features
+## Features
 
 - [x] Native macOS menu bar app
 - [x] Connect to `codex app-server --stdio`
@@ -55,6 +55,12 @@ git clone https://github.com/sangimed/codex-menubar.git
 cd codex-menubar
 make check
 make run
+
+# Build an ad-hoc signed local app bundle
+make app
+
+# Build the app and a distributable ZIP
+make package
 ```
 
 CodexMenuBar has no normal application window and no Dock icon. Look for it on the right side of your macOS menu bar.
@@ -101,7 +107,24 @@ It identifies quota windows by duration instead of assuming that `primary` or `s
 
 If Codex does not report one of those windows, the popover shows it as unavailable rather than fabricating a value.
 
+If Codex exposes additional entries in `rateLimitsByLimitId`, v0.2 surfaces them under **Additional Codex limits** using the server-provided `limitName` when available. CodexMenuBar does not guess which model a limit belongs to.
+
 After the initial snapshot, CodexMenuBar listens for `account/rateLimits/updated` notifications and updates the UI immediately. Manual refreshes reuse the same connection, and a lightweight `account/rateLimits/read` runs every five minutes as a fallback resync. If the app-server exits, CodexMenuBar restarts it with exponential backoff.
+
+## v0.2 local state
+
+Preferences use macOS `UserDefaults`. Usage history is stored locally under Application Support and retained for seven days. Threshold notifications use the macOS notification center. No history is uploaded by CodexMenuBar.
+
+## Packaging
+
+```bash
+make app
+make package
+```
+
+`make app` creates an ad-hoc signed `dist/CodexMenuBar.app`. Set `CODESIGN_IDENTITY` to use a Developer ID identity instead. `make package` additionally creates `dist/CodexMenuBar-macOS.zip`.
+
+Launch at login is intended for a packaged app build; `swift run` remains the development path.
 
 ## Privacy
 
@@ -153,17 +176,17 @@ xed .
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the complete beginner-friendly development setup and contribution workflow.
 
-## Roadmap
+## v0.2
 
-### v0.2 candidates
+The v0.2 branch adds:
 
-- [ ] Configurable menu bar display
-- [ ] Used vs. remaining percentage mode
-- [ ] Usage threshold notifications
-- [ ] Launch at login
-- [ ] Better packaged `.app` distribution
-- [ ] Usage history
-- [ ] Model-specific limits when Codex exposes an explicit mapping
+- [x] Configurable menu bar display: both windows, 5-hour only, weekly only, or icon only
+- [x] Used vs. remaining percentage mode
+- [x] Configurable low-quota notifications
+- [x] Launch at login for packaged app builds
+- [x] Local `.app` and ZIP packaging scripts
+- [x] Seven-day local usage history
+- [x] Additional named/model-specific limit buckets when Codex exposes them through `rateLimitsByLimitId`
 
 ## Known limitations
 
