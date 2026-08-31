@@ -136,9 +136,12 @@ public final class CodexAppServerClient: @unchecked Sendable {
     ) throws {
         try reserveSession()
 
+        let resolver =
+            CodexExecutableResolver()
+
         let executable: String
         do {
-            executable = try resolveCodexExecutable()
+            executable = try resolver.resolve()
         } catch {
             releaseSessionReservation()
             throw error
@@ -155,8 +158,8 @@ public final class CodexAppServerClient: @unchecked Sendable {
         child.executableURL = URL(fileURLWithPath: executable)
         child.arguments = ["app-server", "--stdio"]
         child.environment =
-            codexProcessEnvironment(
-                executable: executable
+            resolver.processEnvironment(
+                for: executable
             )
         child.standardInput = inputPipe
         child.standardOutput = outputPipe
@@ -193,7 +196,8 @@ public final class CodexAppServerClient: @unchecked Sendable {
                     "clientInfo": [
                         "name": "codex-menubar",
                         "title": "CodexMenuBar",
-                        "version": "0.2.2"
+                        "version":
+                            clientVersion
                     ],
                     "capabilities": [
                         "optOutNotificationMethods": [
@@ -400,110 +404,20 @@ public final class CodexAppServerClient: @unchecked Sendable {
         stateLock.unlock()
     }
 
-    private func resolveCodexExecutable() throws -> String {
-        let environment = ProcessInfo.processInfo.environment
-        let fileManager = FileManager.default
-
-        if let override = environment["CODEX_EXECUTABLE"],
-           fileManager.isExecutableFile(atPath: override) {
-            return override
+    private var clientVersion: String {
+        guard
+            let version =
+                Bundle.main
+                .object(
+                    forInfoDictionaryKey:
+                        "CFBundleShortVersionString"
+                ) as? String,
+            !version.isEmpty
+        else {
+            return "dev"
         }
 
-        var candidates: [String] = []
-
-        if let path = environment["PATH"] {
-            candidates.append(
-                contentsOf: path
-                    .split(separator: ":")
-                    .map { "\($0)/codex" }
-            )
-        }
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        candidates.append(contentsOf: [
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex",
-            "\(home)/.local/bin/codex",
-            "\(home)/.npm-global/bin/codex",
-            "\(home)/.volta/bin/codex",
-            "\(home)/.asdf/shims/codex",
-            "\(home)/.local/share/mise/shims/codex"
-        ])
-
-        let nvmVersions = "\(home)/.nvm/versions/node"
-        if let versions = try? fileManager.contentsOfDirectory(
-            atPath: nvmVersions
-        ) {
-            candidates.append(
-                contentsOf: versions
-                    .sorted(by: >)
-                    .map { "\(nvmVersions)/\($0)/bin/codex" }
-            )
-        }
-
-        if let executable = candidates.first(where: {
-            fileManager.isExecutableFile(atPath: $0)
-        }) {
-            return executable
-        }
-
-        throw CodexAppServerError.codexNotFound
-    }
-
-    private func codexProcessEnvironment(
-        executable: String
-    ) -> [String: String] {
-        var environment =
-            ProcessInfo.processInfo.environment
-
-        let fileManager = FileManager.default
-        let home =
-            fileManager
-            .homeDirectoryForCurrentUser
-            .path
-
-        let executableDirectory =
-            URL(fileURLWithPath: executable)
-            .deletingLastPathComponent()
-            .path
-
-        var pathEntries: [String] = [
-            executableDirectory,
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "(home)/.local/bin",
-            "(home)/.npm-global/bin",
-            "(home)/.volta/bin",
-            "(home)/.asdf/shims",
-            "(home)/.local/share/mise/shims",
-            "/usr/bin",
-            "/bin",
-            "/usr/sbin",
-            "/sbin"
-        ]
-
-        if let inheritedPath =
-            environment["PATH"]
-        {
-            pathEntries.append(
-                contentsOf:
-                    inheritedPath
-                    .split(separator: ":")
-                    .map(String.init)
-            )
-        }
-
-        var seen = Set<String>()
-        environment["PATH"] =
-            pathEntries
-            .filter {
-                !$0.isEmpty
-                    && seen.insert($0)
-                    .inserted
-            }
-            .joined(separator: ":")
-
-        return environment
+        return version
     }
 
     private func sendMessages(
@@ -626,136 +540,4 @@ private struct RateLimitsUpdatedNotification: Decodable {
 
 private struct RateLimitsUpdatedParams: Decodable {
     let rateLimits: RateLimitSnapshot
-}
-
-private final class POSIXLineReader {
-    private let fileDescriptor: Int32
-    private var buffer = Data()
-
-    init(fileDescriptor: Int32) {
-        self.fileDescriptor = fileDescriptor
-    }
-
-    func readLine(
-        timeout: TimeInterval?,
-        timeoutStage: String
-    ) throws -> Data? {
-        let deadlineNanoseconds = timeout.map {
-            DispatchTime.now().uptimeNanoseconds
-                + UInt64($0 * 1_000_000_000)
-        }
-
-        while true {
-            if let newlineIndex = buffer.firstIndex(of: 0x0A) {
-                let line = buffer[..<newlineIndex]
-                buffer.removeSubrange(buffer.startIndex...newlineIndex)
-                return Data(line)
-            }
-
-            let timeoutMilliseconds: Int32
-
-            if let deadlineNanoseconds {
-                let now = DispatchTime.now().uptimeNanoseconds
-
-                guard now < deadlineNanoseconds else {
-                    throw CodexAppServerError.timedOut(
-                        stage: timeoutStage
-                    )
-                }
-
-                let remainingMilliseconds = max(
-                    1,
-                    (deadlineNanoseconds - now) / 1_000_000
-                )
-                timeoutMilliseconds = Int32(
-                    min(
-                        UInt64(Int32.max),
-                        remainingMilliseconds
-                    )
-                )
-            } else {
-                timeoutMilliseconds = -1
-            }
-
-            var descriptor = pollfd(
-                fd: fileDescriptor,
-                events: Int16(POLLIN),
-                revents: 0
-            )
-
-            let pollResult = poll(
-                &descriptor,
-                1,
-                timeoutMilliseconds
-            )
-
-            if pollResult == 0 {
-                throw CodexAppServerError.timedOut(
-                    stage: timeoutStage
-                )
-            }
-
-            if pollResult < 0 {
-                if errno == EINTR {
-                    continue
-                }
-
-                throw NSError(
-                    domain: NSPOSIXErrorDomain,
-                    code: Int(errno)
-                )
-            }
-
-            if descriptor.revents & Int16(POLLIN) != 0 {
-                var bytes = [UInt8](repeating: 0, count: 4_096)
-                let bytesRead = bytes.withUnsafeMutableBytes { rawBuffer in
-                    read(
-                        fileDescriptor,
-                        rawBuffer.baseAddress,
-                        rawBuffer.count
-                    )
-                }
-
-                if bytesRead > 0 {
-                    buffer.append(
-                        contentsOf: bytes.prefix(Int(bytesRead))
-                    )
-                    continue
-                }
-
-                if bytesRead == 0 {
-                    if buffer.isEmpty {
-                        return nil
-                    }
-
-                    let line = buffer
-                    buffer.removeAll(keepingCapacity: false)
-                    return line
-                }
-
-                if errno == EINTR {
-                    continue
-                }
-
-                throw NSError(
-                    domain: NSPOSIXErrorDomain,
-                    code: Int(errno)
-                )
-            }
-
-            if descriptor.revents & Int16(POLLHUP) != 0 {
-                if buffer.isEmpty {
-                    return nil
-                }
-
-                let line = buffer
-                buffer.removeAll(keepingCapacity: false)
-                return line
-            }
-
-            if descriptor.revents & Int16(POLLERR | POLLNVAL) != 0 {
-                throw CodexAppServerError.unexpectedEndOfOutput
-            }
-        }
-    }
 }
