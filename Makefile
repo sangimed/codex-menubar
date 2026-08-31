@@ -1,4 +1,4 @@
-.PHONY: check build test run app package clean
+.PHONY: check build test run icon app package clean
 
 check:
 	./scripts/check-environment.sh
@@ -11,6 +11,9 @@ test:
 
 run:
 	swift run CodexMenuBar
+
+icon:
+	bash scripts/generate-app-icon.sh
 
 app:
 	bash scripts/build-app.sh
