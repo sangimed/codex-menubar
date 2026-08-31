@@ -43,6 +43,9 @@ if [[ "${UNIVERSAL_BINARY:-1}" == "1" ]]; then
   }
 fi
 
+ICON_FILE="$RESOURCES_DIR/CodexMenuBar.icns"
+bash "$ROOT_DIR/scripts/generate-app-icon.sh" "$ICON_FILE"
+
 if [[ -f "$ROOT_DIR/assets/codex-menubar-logo.svg" ]]; then
   cp "$ROOT_DIR/assets/codex-menubar-logo.svg" "$RESOURCES_DIR/"
 fi
@@ -58,6 +61,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>CodexMenuBar.icns</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
