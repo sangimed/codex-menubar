@@ -28,6 +28,10 @@ let package = Package(
         .testTarget(
             name: "CodexMenuBarCoreTests",
             dependencies: ["CodexMenuBarCore"]
+        ),
+        .testTarget(
+            name: "CodexMenuBarTests",
+            dependencies: ["CodexMenuBar"]
         )
     ]
 )
