@@ -17,7 +17,7 @@ cask "codex-menubar" do
 
   url "https://github.com/sangimed/codex-menubar/releases/download/v#{version}/CodexMenuBar-v#{version}-macOS.zip"
   name "CodexMenuBar"
-  desc "Monitor Codex usage limits from the macOS menu bar"
+  desc "Monitor Codex usage limits at a glance"
   homepage "https://github.com/sangimed/codex-menubar"
 
   depends_on macos: :ventura
