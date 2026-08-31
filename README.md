@@ -33,7 +33,7 @@ The percentages represent **quota remaining**, matching the Codex UI. Click the 
 - [x] Manual refresh
 - [x] Live updates from `account/rateLimits/updated`
 - [x] Persistent local app-server session
-- [x] Five-minute fallback resync
+- [x] 30-second fallback resync
 - [x] Preserve the last successful snapshot when a refresh fails
 - [x] Handle missing quota windows gracefully
 - [x] Apple Silicon and Intel-compatible Swift source
@@ -109,7 +109,7 @@ If Codex does not report one of those windows, the popover shows it as unavailab
 
 If Codex exposes additional entries in `rateLimitsByLimitId`, v0.2 surfaces them under **Additional Codex limits** using the server-provided `limitName` when available. CodexMenuBar does not guess which model a limit belongs to.
 
-After the initial snapshot, CodexMenuBar listens for `account/rateLimits/updated` notifications and updates the UI immediately. Manual refreshes reuse the same connection, and a lightweight `account/rateLimits/read` runs every five minutes as a fallback resync. If the app-server exits, CodexMenuBar restarts it with exponential backoff.
+After the initial snapshot, CodexMenuBar listens for `account/rateLimits/updated` notifications and updates the UI immediately. Manual refreshes reuse the same connection, and a lightweight `account/rateLimits/read` runs every 30 seconds as a fallback resync. If the app-server exits, CodexMenuBar restarts it with exponential backoff.
 
 ## v0.2 local state
 
