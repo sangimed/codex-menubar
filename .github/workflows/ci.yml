@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/v0.2
   pull_request:
 
 jobs:
@@ -13,7 +12,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Show Swift version
         run: swift --version
@@ -28,7 +27,9 @@ jobs:
         run: |
           bash -n scripts/build-app.sh
           bash -n scripts/generate-app-icon.sh
+          bash -n scripts/generate-release-notes.sh
           bash -n scripts/package-app.sh
+          bash -n scripts/read-version.sh
           bash -n scripts/render-homebrew-cask.sh
 
       - name: Build app bundle
@@ -55,16 +56,18 @@ jobs:
 
       - name: Validate Homebrew cask rendering
         run: |
+          VERSION="$(bash scripts/read-version.sh)"
           bash scripts/render-homebrew-cask.sh \
-            0.2.0 \
+            "$VERSION" \
             aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
             /tmp/codex-menubar.rb
           grep -q 'cask "codex-menubar"' /tmp/codex-menubar.rb
-          grep -q 'version "0.2.0"' /tmp/codex-menubar.rb
+          grep -q "version \"$VERSION\"" /tmp/codex-menubar.rb
           grep -q 'CodexMenuBar is ad-hoc signed and is not notarized by Apple.' /tmp/codex-menubar.rb
+          brew style --cask /tmp/codex-menubar.rb
 
       - name: Upload app bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: CodexMenuBar-macOS
           path: dist/CodexMenuBar.app
