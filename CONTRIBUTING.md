@@ -288,7 +288,8 @@ make test
 │   ├── generate-release-notes.sh
 │   ├── package-app.sh
 │   ├── read-version.sh
-│   └── render-homebrew-cask.sh
+│   ├── render-homebrew-cask.sh
+│   └── validate-homebrew-cask.sh
 ├── Sources/
 │   ├── CodexMenuBar/
 │   │   ├── CodexMenuBarApp.swift
