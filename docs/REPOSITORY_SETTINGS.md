@@ -39,3 +39,20 @@ Enable **Private vulnerability reporting** under:
 `Settings → Security → Code security and analysis`
 
 This makes the reporting path documented in `SECURITY.md` available to users.
+
+
+## Backfill the current release notes
+
+The release workflow now generates useful notes automatically. The already
+published `v0.2.2` release predates that change.
+
+After merging this branch, refresh its release notes once with:
+
+```bash
+git switch main
+git pull
+bash scripts/backfill-release-notes.sh v0.2.2
+```
+
+The script uses the authenticated GitHub CLI and generates notes from commits
+between `v0.2.1` and `v0.2.2`.
