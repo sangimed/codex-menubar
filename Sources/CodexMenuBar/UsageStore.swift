@@ -49,8 +49,6 @@ final class UsageStore: ObservableObject {
         1, 2, 5, 10, 30, 60
     ]
 
-    private let fallbackRefreshIntervalNanoseconds:
-        UInt64 = 30_000_000_000
 
     init(
         client:
@@ -92,27 +90,7 @@ final class UsageStore: ObservableObject {
             await self?.runSessionLoop()
         }
 
-        fallbackRefreshTask =
-            Task { [weak self] in
-                while !Task.isCancelled {
-                    do {
-                        try await Task.sleep(
-                            nanoseconds:
-                                fallbackRefreshIntervalNanoseconds
-                        )
-                    } catch {
-                        return
-                    }
-
-                    guard let self else {
-                        return
-                    }
-
-                    self.requestRefresh(
-                        showActivity: false
-                    )
-                }
-            }
+        startFallbackRefreshLoop()
     }
 
     func refresh() async {
@@ -139,9 +117,59 @@ final class UsageStore: ObservableObject {
             .requestAuthorization()
     }
 
+    func setRefreshIntervalSeconds(
+        _ seconds: Int
+    ) {
+        preferences
+            .setRefreshIntervalSeconds(
+                seconds
+            )
+
+        guard sessionTask != nil else {
+            return
+        }
+
+        startFallbackRefreshLoop()
+    }
+
     func clearHistory() {
         history = []
         historyRepository.clear()
+    }
+
+    private func startFallbackRefreshLoop() {
+        fallbackRefreshTask?.cancel()
+
+        fallbackRefreshTask =
+            Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self else {
+                        return
+                    }
+
+                    let interval =
+                        self.preferences
+                        .refreshIntervalSeconds
+
+                    do {
+                        try await Task.sleep(
+                            nanoseconds:
+                                UInt64(interval)
+                                * 1_000_000_000
+                        )
+                    } catch {
+                        return
+                    }
+
+                    guard !Task.isCancelled else {
+                        return
+                    }
+
+                    self.requestRefresh(
+                        showActivity: false
+                    )
+                }
+            }
     }
 
     private func runSessionLoop() async {
