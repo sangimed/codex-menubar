@@ -1,4 +1,5 @@
 import CodexMenuBarCore
+import Foundation
 import SwiftUI
 
 struct MenuBarLabel: View {
