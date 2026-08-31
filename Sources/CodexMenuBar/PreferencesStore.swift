@@ -59,6 +59,15 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published var showCreditsInMenuBar: Bool {
+        didSet {
+            defaults.set(
+                showCreditsInMenuBar,
+                forKey: Keys.showCreditsInMenuBar
+            )
+        }
+    }
+
     @Published var notificationsEnabled: Bool {
         didSet {
             defaults.set(
@@ -96,6 +105,11 @@ final class PreferencesStore: ObservableObject {
                 forKey: Keys.menuBarDisplayMode
             ) ?? ""
         ) ?? .both
+
+        self.showCreditsInMenuBar =
+            defaults.object(
+                forKey: Keys.showCreditsInMenuBar
+            ) as? Bool ?? false
 
         self.notificationsEnabled =
             defaults.object(
@@ -187,6 +201,7 @@ final class PreferencesStore: ObservableObject {
     private enum Keys {
         static let percentageMode = "percentageMode"
         static let menuBarDisplayMode = "menuBarDisplayMode"
+        static let showCreditsInMenuBar = "showCreditsInMenuBar"
         static let notificationsEnabled = "notificationsEnabled"
         static let notificationThreshold = "notificationThreshold"
         static let refreshIntervalSeconds = "refreshIntervalSeconds"
