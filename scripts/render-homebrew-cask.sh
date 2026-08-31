@@ -20,7 +20,7 @@ cask "codex-menubar" do
   desc "Monitor Codex usage limits from the macOS menu bar"
   homepage "https://github.com/sangimed/codex-menubar"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "CodexMenuBar.app"
 
