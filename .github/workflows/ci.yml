@@ -48,6 +48,10 @@ jobs:
           ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/CodexMenuBar.app/Contents/Info.plist)"
           [[ "$ICON_NAME" == "CodexMenuBar.icns" ]]
 
+          PROJECT_VERSION="$(bash scripts/read-version.sh)"
+          BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/CodexMenuBar.app/Contents/Info.plist)"
+          [[ "$BUNDLE_VERSION" == "$PROJECT_VERSION" ]]
+
           rm -rf /tmp/CodexMenuBar.iconset
           iconutil -c iconset "$ICON" -o /tmp/CodexMenuBar.iconset
           test -s /tmp/CodexMenuBar.iconset/icon_512x512@2x.png
