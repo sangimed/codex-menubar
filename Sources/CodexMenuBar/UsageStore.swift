@@ -49,6 +49,9 @@ final class UsageStore: ObservableObject {
         1, 2, 5, 10, 30, 60
     ]
 
+    private let fallbackRefreshIntervalNanoseconds:
+        UInt64 = 30_000_000_000
+
     init(
         client:
             CodexAppServerClient =
@@ -95,7 +98,7 @@ final class UsageStore: ObservableObject {
                     do {
                         try await Task.sleep(
                             nanoseconds:
-                                300_000_000_000
+                                fallbackRefreshIntervalNanoseconds
                         )
                     } catch {
                         return
