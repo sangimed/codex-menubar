@@ -112,20 +112,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          PRERELEASE_ARGS=()
-          TARGET_ARGS=()
-
-          if [[ "$IS_PRERELEASE" == "true" ]]; then
-            PRERELEASE_ARGS+=(--prerelease)
-          fi
+          set -- gh release create "$RELEASE_TAG" \
+            "dist/$ASSET_NAME" \
+            "dist/$ASSET_NAME.sha256" \
+            "dist/codex-menubar.rb" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "CodexMenuBar $RELEASE_TAG" \
+            --generate-notes
 
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            TARGET_ARGS+=(--verify-tag)
+            set -- "$@" --verify-tag
           else
-            TARGET_ARGS+=(--target "$GITHUB_SHA")
+            set -- "$@" --target "$GITHUB_SHA"
           fi
 
-          gh release create "$RELEASE_TAG"             "dist/$ASSET_NAME"             "dist/$ASSET_NAME.sha256"             "dist/codex-menubar.rb"             --repo "$GITHUB_REPOSITORY"             --title "CodexMenuBar $RELEASE_TAG"             --generate-notes             "${TARGET_ARGS[@]}"             "${PRERELEASE_ARGS[@]}"
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            set -- "$@" --prerelease
+          fi
+
+          "$@"
 
       - name: Update Homebrew tap
         env:
