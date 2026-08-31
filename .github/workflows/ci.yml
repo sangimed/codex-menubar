@@ -26,6 +26,7 @@ jobs:
       - name: Check release scripts
         run: |
           bash -n scripts/build-app.sh
+          bash -n scripts/configure-main-protection.sh
           bash -n scripts/generate-app-icon.sh
           bash -n scripts/generate-release-notes.sh
           bash -n scripts/package-app.sh
