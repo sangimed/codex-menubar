@@ -115,7 +115,7 @@ jobs:
             "$SHA256" \
             dist/codex-menubar.rb
 
-          brew style --cask dist/codex-menubar.rb
+          bash scripts/validate-homebrew-cask.sh dist/codex-menubar.rb
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
 
       - name: Generate release notes
