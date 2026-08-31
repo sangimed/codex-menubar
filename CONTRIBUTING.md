@@ -251,7 +251,7 @@ or:
 swift test
 ```
 
-The tests cover the Codex rate-limit JSON model and, importantly, verify that windows are classified by `windowDurationMins` instead of assuming `primary` always means five hours.
+The test suite covers rate-limit decoding and classification, Codex executable discovery, GUI-safe process environment construction, and preference validation.
 
 Before opening a pull request, run both:
 
@@ -356,11 +356,11 @@ The five-hour and weekly limits are detected by duration:
 
 The code intentionally does not assume that `primary` and `secondary` always have fixed meanings.
 
-v0.2 also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quota, while any additional explicitly reported bucket is surfaced in the popover. The app uses `limitName` when Codex provides one and never guesses a model mapping.
+CodexMenuBar also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quota, while any additional explicitly reported bucket is surfaced in the popover. The app uses `limitName` when Codex provides one and never guesses a model mapping.
 
-### v0.2 local preferences, history, and notifications
+### Local preferences, history, and notifications
 
-v0.2 stores display, refresh, and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
+CodexMenuBar stores display, refresh, and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
 
 Launch at login uses `SMAppService.mainApp` and is intended to be tested from a packaged `.app`, not from `swift run`.
 
@@ -387,8 +387,10 @@ make icon
 To also create a versioned ZIP and SHA-256 checksum:
 
 ```bash
-VERSION=0.2.0 make package
+make package
 ```
+
+The root `VERSION` file is the source of truth for local package versions. Release automation verifies that the requested release version matches it.
 
 Release builds are universal macOS binaries by default and contain both `arm64` and `x86_64`. See **[RELEASING.md](RELEASING.md)** for tagged GitHub Releases and Homebrew distribution.
 
