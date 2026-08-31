@@ -269,10 +269,15 @@ make test
 ├── CONTRIBUTING.md
 ├── RELEASING.md
 ├── Makefile
+├── assets/
+│   └── codex-menubar-logo.svg
 ├── scripts/
 │   ├── check-environment.sh
 │   ├── build-app.sh
-│   └── package-app.sh
+│   ├── generate-app-icon.sh
+│   ├── generate-app-icon.swift
+│   ├── package-app.sh
+│   └── render-homebrew-cask.sh
 ├── Sources/
 │   ├── CodexMenuBar/
 │   │   ├── CodexMenuBarApp.swift
@@ -369,6 +374,14 @@ This creates:
 
 ```text
 dist/CodexMenuBar.app
+```
+
+The packaged app icon is generated from `assets/codex-menubar-logo.svg` as a
+macOS `.icns` file and embedded in `Contents/Resources`. To generate the
+icon by itself:
+
+```bash
+make icon
 ```
 
 To also create a versioned ZIP and SHA-256 checksum:
