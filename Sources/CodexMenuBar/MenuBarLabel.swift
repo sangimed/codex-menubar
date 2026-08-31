@@ -43,23 +43,59 @@ struct MenuBarLabel: View {
                 "W\(percentage(preferences.percentage(for: $0)))%"
             }
 
+        let credits =
+            preferences.showCreditsInMenuBar
+                ? summary.credits.flatMap(
+                    menuBarCreditsText
+                )
+                : nil
+
         switch preferences
             .menuBarDisplayMode
         {
         case .both:
-            return [fiveHour, weekly]
+            return [fiveHour, weekly, credits]
                 .compactMap { $0 }
                 .joined(separator: " · ")
 
         case .fiveHour:
-            return fiveHour ?? "—"
+            return [fiveHour ?? "—", credits]
+                .compactMap { $0 }
+                .joined(separator: " · ")
 
         case .weekly:
-            return weekly ?? "W—"
+            return [weekly ?? "W—", credits]
+                .compactMap { $0 }
+                .joined(separator: " · ")
 
         case .iconOnly:
             return ""
         }
+    }
+
+    private func menuBarCreditsText(
+        _ credits: CodexCredits
+    ) -> String? {
+        guard credits.hasCredits else {
+            return nil
+        }
+
+        if credits.unlimited {
+            return "∞"
+        }
+
+        guard let balance = credits.balance else {
+            return nil
+        }
+
+        if let value = Double(balance) {
+            return String(
+                format: "%.0f",
+                value
+            )
+        }
+
+        return balance
     }
 
     private func percentage(
