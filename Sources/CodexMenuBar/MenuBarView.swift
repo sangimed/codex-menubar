@@ -219,6 +219,34 @@ struct MenuBarView: View {
                     }
                 }
 
+                Stepper(
+                    "Refresh every \(preferences.refreshIntervalSeconds) seconds",
+                    value: Binding(
+                        get: {
+                            preferences
+                                .refreshIntervalSeconds
+                        },
+                        set: {
+                            store
+                                .setRefreshIntervalSeconds(
+                                    $0
+                                )
+                        }
+                    ),
+                    in:
+                        PreferencesStore
+                        .minimumRefreshIntervalSeconds
+                        ...
+                        PreferencesStore
+                        .maximumRefreshIntervalSeconds,
+                    step:
+                        PreferencesStore
+                        .refreshIntervalStepSeconds
+                )
+                .help(
+                    "How often CodexMenuBar polls Codex for fresh usage data. Push updates are still applied immediately."
+                )
+
                 Toggle(
                     "Quota threshold notifications",
                     isOn: Binding(
