@@ -17,10 +17,19 @@ CodexMenuBar keeps that information directly in the macOS menu bar with a lightw
 The menu bar shows a compact summary such as:
 
 ```text
-13% · W73%
+13% · W73% · 240
 ```
 
-The percentages represent **quota remaining**, matching the Codex UI. Click the item to see detailed five-hour and weekly usage, reset times, plan, credits, and refresh status.
+With the default **Remaining** percentage mode:
+
+- `13%` — remaining quota in the rolling 5-hour window
+- `W73%` — remaining quota in the weekly window
+- `240` — available Codex credits, shown only when **Show credits in menu bar** is enabled and Codex reports a balance
+- `∞` — unlimited credits when Codex reports them as unlimited
+
+Switching the percentage preference to **Used** makes the 5-hour and weekly values represent quota used instead. Credits remain a balance and do not change with percentage mode.
+
+Click the item to see detailed five-hour and weekly usage, reset times, plan, credits, and refresh status.
 
 ## Features
 
@@ -30,6 +39,7 @@ The percentages represent **quota remaining**, matching the Codex UI. Click the 
 - [x] Display weekly usage
 - [x] Display reset countdowns
 - [x] Display available credits when reported by Codex
+- [x] Optional compact credit balance in the menu bar
 - [x] Manual refresh
 - [x] Live updates from `account/rateLimits/updated`
 - [x] Persistent local app-server session
@@ -242,6 +252,7 @@ The v0.2 branch adds:
 - [x] Seven-day local usage history
 - [x] Additional named/model-specific limit buckets when Codex exposes them through `rateLimitsByLimitId`
 - [x] Configurable background refresh interval from 15 to 300 seconds (30 seconds by default)
+- [x] Optional credit balance in the menu bar without extra label text
 
 ## Known limitations
 
