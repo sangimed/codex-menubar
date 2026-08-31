@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-VERSION="${VERSION:-0.2.0}"
+PROJECT_VERSION="$(bash "$ROOT_DIR/scripts/read-version.sh")"
+VERSION="${VERSION:-$PROJECT_VERSION}"
 ASSET_NAME="CodexMenuBar-v$VERSION-macOS.zip"
 CHECKSUM_NAME="$ASSET_NAME.sha256"
 
