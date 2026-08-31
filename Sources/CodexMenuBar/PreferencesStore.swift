@@ -36,6 +36,11 @@ enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
 
 @MainActor
 final class PreferencesStore: ObservableObject {
+    static let minimumRefreshIntervalSeconds = 15
+    static let maximumRefreshIntervalSeconds = 300
+    static let refreshIntervalStepSeconds = 5
+    static let defaultRefreshIntervalSeconds = 30
+
     @Published var percentageMode: PercentageMode {
         didSet {
             defaults.set(
@@ -72,6 +77,9 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published private(set)
+    var refreshIntervalSeconds: Int
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -99,6 +107,37 @@ final class PreferencesStore: ObservableObject {
         )
         self.notificationThreshold =
             storedThreshold == 0 ? 20 : storedThreshold
+
+        let storedRefreshInterval =
+            defaults.object(
+                forKey: Keys.refreshIntervalSeconds
+            ) as? Int
+
+        self.refreshIntervalSeconds =
+            Self.clampedRefreshInterval(
+                storedRefreshInterval
+                    ?? Self.defaultRefreshIntervalSeconds
+            )
+    }
+
+    func setRefreshIntervalSeconds(
+        _ seconds: Int
+    ) {
+        let clamped =
+            Self.clampedRefreshInterval(
+                seconds
+            )
+
+        guard clamped != refreshIntervalSeconds
+        else {
+            return
+        }
+
+        refreshIntervalSeconds = clamped
+        defaults.set(
+            clamped,
+            forKey: Keys.refreshIntervalSeconds
+        )
     }
 
     func percentage(for window: RateLimitWindow) -> Double {
@@ -133,10 +172,23 @@ final class PreferencesStore: ObservableObject {
             : "remaining"
     }
 
+    private static func clampedRefreshInterval(
+        _ seconds: Int
+    ) -> Int {
+        max(
+            minimumRefreshIntervalSeconds,
+            min(
+                maximumRefreshIntervalSeconds,
+                seconds
+            )
+        )
+    }
+
     private enum Keys {
         static let percentageMode = "percentageMode"
         static let menuBarDisplayMode = "menuBarDisplayMode"
         static let notificationsEnabled = "notificationsEnabled"
         static let notificationThreshold = "notificationThreshold"
+        static let refreshIntervalSeconds = "refreshIntervalSeconds"
     }
 }
