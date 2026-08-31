@@ -33,6 +33,7 @@ jobs:
           bash -n scripts/package-app.sh
           bash -n scripts/read-version.sh
           bash -n scripts/render-homebrew-cask.sh
+          bash -n scripts/validate-homebrew-cask.sh
 
       - name: Build app bundle
         run: make app
@@ -70,7 +71,7 @@ jobs:
           grep -q 'cask "codex-menubar"' /tmp/codex-menubar.rb
           grep -q "version \"$VERSION\"" /tmp/codex-menubar.rb
           grep -q 'CodexMenuBar is ad-hoc signed and is not notarized by Apple.' /tmp/codex-menubar.rb
-          brew style --cask /tmp/codex-menubar.rb
+          bash scripts/validate-homebrew-cask.sh /tmp/codex-menubar.rb
 
       - name: Upload app bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
