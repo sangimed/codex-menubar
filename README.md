@@ -8,6 +8,8 @@ A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a g
 
 <p align="center">
   <img src="docs/screenshots/codex-menubar-preview.webp" alt="CodexMenuBar showing 5-hour and weekly Codex usage from the macOS menu bar" width="760" />
+  <br />
+  <sub>Example with the percentage display set to <strong>Used</strong>.</sub>
 </p>
 
 > **Status:** Available as a Homebrew Cask and as downloadable builds from GitHub Releases.
@@ -47,7 +49,7 @@ Click the item to see detailed five-hour and weekly usage, reset times, plan, cr
 - [x] Manual refresh
 - [x] Live updates from `account/rateLimits/updated`
 - [x] Persistent local app-server session
-- [x] configurable fallback resync (30 seconds by default)
+- [x] Configurable fallback resync (30 seconds by default)
 - [x] Preserve the last successful snapshot when a refresh fails
 - [x] Handle missing quota windows gracefully
 - [x] Apple Silicon and Intel-compatible Swift source
@@ -268,6 +270,8 @@ CodexMenuBar currently includes:
 ## Contributing
 
 Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**, especially if you have never configured Swift development on macOS before.
+
+Security reports should follow **[SECURITY.md](SECURITY.md)** rather than being opened as public issues.
 
 ## License
 
