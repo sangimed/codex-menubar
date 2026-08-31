@@ -189,7 +189,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
                     "clientInfo": [
                         "name": "codex-menubar",
                         "title": "CodexMenuBar",
-                        "version": "0.2.0"
+                        "version": "0.2.1"
                     ],
                     "capabilities": [
                         "optOutNotificationMethods": [
