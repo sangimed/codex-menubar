@@ -29,8 +29,7 @@ final class POSIXLineReader {
                 let line =
                     buffer[..<newlineIndex]
                 buffer.removeSubrange(
-                    buffer.startIndex
-                    ...newlineIndex
+                    buffer.startIndex...newlineIndex
                 )
                 return Data(line)
             }
