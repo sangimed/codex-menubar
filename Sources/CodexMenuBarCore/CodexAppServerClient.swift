@@ -154,6 +154,10 @@ public final class CodexAppServerClient: @unchecked Sendable {
 
         child.executableURL = URL(fileURLWithPath: executable)
         child.arguments = ["app-server", "--stdio"]
+        child.environment =
+            codexProcessEnvironment(
+                executable: executable
+            )
         child.standardInput = inputPipe
         child.standardOutput = outputPipe
         child.standardError = FileHandle.standardError
@@ -444,6 +448,62 @@ public final class CodexAppServerClient: @unchecked Sendable {
         }
 
         throw CodexAppServerError.codexNotFound
+    }
+
+    private func codexProcessEnvironment(
+        executable: String
+    ) -> [String: String] {
+        var environment =
+            ProcessInfo.processInfo.environment
+
+        let fileManager = FileManager.default
+        let home =
+            fileManager
+            .homeDirectoryForCurrentUser
+            .path
+
+        let executableDirectory =
+            URL(fileURLWithPath: executable)
+            .deletingLastPathComponent()
+            .path
+
+        var pathEntries: [String] = [
+            executableDirectory,
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "(home)/.local/bin",
+            "(home)/.npm-global/bin",
+            "(home)/.volta/bin",
+            "(home)/.asdf/shims",
+            "(home)/.local/share/mise/shims",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ]
+
+        if let inheritedPath =
+            environment["PATH"]
+        {
+            pathEntries.append(
+                contentsOf:
+                    inheritedPath
+                    .split(separator: ":")
+                    .map(String.init)
+            )
+        }
+
+        var seen = Set<String>()
+        environment["PATH"] =
+            pathEntries
+            .filter {
+                !$0.isEmpty
+                    && seen.insert($0)
+                    .inserted
+            }
+            .joined(separator: ":")
+
+        return environment
     }
 
     private func sendMessages(
