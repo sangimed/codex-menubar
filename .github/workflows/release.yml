@@ -29,7 +29,9 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
       - name: Resolve release
         env:
@@ -52,6 +54,13 @@ jobs:
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release version: $VERSION" >&2
+            exit 1
+          fi
+
+          PROJECT_VERSION="$(bash scripts/read-version.sh)"
+          if [[ "$VERSION" != "$PROJECT_VERSION" ]]; then
+            echo "Release version $VERSION does not match VERSION file ($PROJECT_VERSION)." >&2
+            echo "Update VERSION in a pull request before publishing a release." >&2
             exit 1
           fi
 
@@ -105,6 +114,16 @@ jobs:
 
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
 
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/generate-release-notes.sh \
+            "$RELEASE_TAG" \
+            "$GITHUB_SHA" \
+            dist/release-notes.md
+          cat dist/release-notes.md
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,7 +137,7 @@ jobs:
             "dist/codex-menubar.rb" \
             --repo "$GITHUB_REPOSITORY" \
             --title "CodexMenuBar $RELEASE_TAG" \
-            --generate-notes
+            --notes-file dist/release-notes.md
 
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
             set -- "$@" --verify-tag
