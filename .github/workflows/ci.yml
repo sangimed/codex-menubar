@@ -27,6 +27,7 @@ jobs:
       - name: Check release scripts
         run: |
           bash -n scripts/build-app.sh
+          bash -n scripts/generate-app-icon.sh
           bash -n scripts/package-app.sh
           bash -n scripts/render-homebrew-cask.sh
 
@@ -39,6 +40,17 @@ jobs:
           echo "Architectures: $ARCHS"
           [[ "$ARCHS" == *"arm64"* ]]
           [[ "$ARCHS" == *"x86_64"* ]]
+
+          ICON="dist/CodexMenuBar.app/Contents/Resources/CodexMenuBar.icns"
+          test -s "$ICON"
+
+          ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/CodexMenuBar.app/Contents/Info.plist)"
+          [[ "$ICON_NAME" == "CodexMenuBar.icns" ]]
+
+          rm -rf /tmp/CodexMenuBar.iconset
+          iconutil -c iconset "$ICON" -o /tmp/CodexMenuBar.iconset
+          test -s /tmp/CodexMenuBar.iconset/icon_512x512@2x.png
+
           codesign --verify --deep --strict --verbose=2 dist/CodexMenuBar.app
 
       - name: Validate Homebrew cask rendering
