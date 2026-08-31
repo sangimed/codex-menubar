@@ -6,6 +6,10 @@
 
 A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
 
+<p align="center">
+  <img src="docs/screenshots/codex-menubar-preview.webp" alt="CodexMenuBar showing 5-hour and weekly Codex usage from the macOS menu bar" width="760" />
+</p>
+
 > **Status:** Available as a Homebrew Cask and as downloadable builds from GitHub Releases.
 
 ## Why CodexMenuBar?
@@ -264,6 +268,10 @@ The v0.2 branch adds:
 ## Contributing
 
 Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**, especially if you have never configured Swift development on macOS before.
+
+## License
+
+CodexMenuBar is released under the [MIT License](LICENSE).
 
 ## Disclaimer
 
