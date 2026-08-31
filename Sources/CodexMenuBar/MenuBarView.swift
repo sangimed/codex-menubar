@@ -505,7 +505,11 @@ struct MenuBarView: View {
                     Text("Updated")
                     Text(
                         lastUpdated,
-                        style: .time
+                        format:
+                            .dateTime
+                            .hour()
+                            .minute()
+                            .second()
                     )
                 }
                 .font(.caption)
