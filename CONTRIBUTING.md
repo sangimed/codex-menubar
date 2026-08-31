@@ -264,36 +264,50 @@ make test
 
 ```text
 .
+├── VERSION
 ├── Package.swift
 ├── README.md
 ├── CONTRIBUTING.md
 ├── RELEASING.md
+├── CHANGELOG.md
+├── LICENSE
+├── SECURITY.md
 ├── Makefile
 ├── assets/
 │   └── codex-menubar-logo.svg
+├── docs/
+│   ├── REPOSITORY_SETTINGS.md
+│   └── screenshots/
 ├── scripts/
-│   ├── check-environment.sh
 │   ├── build-app.sh
+│   ├── check-environment.sh
+│   ├── configure-main-protection.sh
 │   ├── generate-app-icon.sh
 │   ├── generate-app-icon.swift
+│   ├── generate-release-notes.sh
 │   ├── package-app.sh
+│   ├── read-version.sh
 │   └── render-homebrew-cask.sh
 ├── Sources/
 │   ├── CodexMenuBar/
 │   │   ├── CodexMenuBarApp.swift
-│   │   ├── MenuBarLabel.swift
 │   │   ├── MenuBarView.swift
-│   │   ├── PreferencesStore.swift
-│   │   ├── UsageHistoryStore.swift
-│   │   ├── UsageNotificationManager.swift
-│   │   ├── LaunchAtLoginManager.swift
-│   │   └── UsageStore.swift
+│   │   ├── PreferencesSection.swift
+│   │   ├── UsageHistorySection.swift
+│   │   ├── AdditionalLimitsSection.swift
+│   │   ├── UsageComponents.swift
+│   │   └── ...
 │   └── CodexMenuBarCore/
 │       ├── CodexAppServerClient.swift
-│       └── RateLimitModels.swift
+│       ├── CodexAppServerError.swift
+│       ├── CodexExecutableResolver.swift
+│       ├── CodexRPCModels.swift
+│       ├── POSIXLineReader.swift
+│       ├── RateLimitModels.swift
+│       └── ...
 └── Tests/
-    └── CodexMenuBarCoreTests/
-        └── RateLimitModelsTests.swift
+    ├── CodexMenuBarCoreTests/
+    └── CodexMenuBarTests/
 ```
 
 ### `CodexMenuBarCore`
@@ -408,9 +422,14 @@ CodexMenuBar therefore checks:
 
 - `CODEX_EXECUTABLE`
 - the current `PATH`
-- common Homebrew and local binary folders
+- Homebrew locations on Apple Silicon and Intel Macs
+- the official standalone installer under `~/.codex/packages/standalone`
+- common local npm locations
 - Volta, asdf, and mise shims
 - installed Node versions under `~/.nvm/versions/node`
+
+When launching the child process, CodexMenuBar also constructs a GUI-safe
+`PATH` so Finder/Spotlight launches do not depend on an interactive shell.
 
 If CodexMenuBar still cannot find Codex, get its path:
 
@@ -539,12 +558,9 @@ Keep the project lightweight and native:
 
 GitHub Actions runs on pushes to `main` and on pull requests.
 
-The CI currently runs:
-
-```bash
-swift build
-swift test
-```
+CI builds and tests the Swift package, creates the universal app bundle,
+verifies both architectures and the ad-hoc signature, checks the generated
+application icon and bundle version, and validates the generated Homebrew Cask.
 
 A pull request should be green before it is merged.
 
