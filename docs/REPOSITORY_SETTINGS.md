@@ -5,7 +5,17 @@ hardening branch.
 
 ## Protect `main`
 
-Create a branch ruleset targeting `main` with:
+After merging the hardening changes, the maintainer can apply the recommended
+classic branch protection with:
+
+```bash
+bash scripts/configure-main-protection.sh
+```
+
+The script requires an authenticated GitHub CLI session with repository
+administration permission.
+
+Equivalent settings in the GitHub UI are:
 
 - require a pull request before merging
 - require the `build-and-test` CI status check
