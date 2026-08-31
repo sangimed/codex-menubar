@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, e.g. 0.2.0 or 0.2.0-beta.1"
+        description: "Release version matching the VERSION file"
         required: true
         type: string
       prerelease:
@@ -110,8 +110,12 @@ jobs:
 
           SHA256="$(shasum -a 256 "dist/$ASSET_NAME" | awk '{print $1}')"
 
-          bash scripts/render-homebrew-cask.sh             "$VERSION"             "$SHA256"             dist/codex-menubar.rb
+          bash scripts/render-homebrew-cask.sh \
+            "$VERSION" \
+            "$SHA256" \
+            dist/codex-menubar.rb
 
+          brew style --cask dist/codex-menubar.rb
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
 
       - name: Generate release notes
@@ -170,7 +174,9 @@ jobs:
 
           TAP_DIR="$RUNNER_TEMP/homebrew-tap"
 
-          git clone             "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/sangimed/homebrew-tap.git"             "$TAP_DIR"
+          git clone \
+            "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/sangimed/homebrew-tap.git" \
+            "$TAP_DIR"
 
           mkdir -p "$TAP_DIR/Casks"
           cp dist/codex-menubar.rb "$TAP_DIR/Casks/codex-menubar.rb"
