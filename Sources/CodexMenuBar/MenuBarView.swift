@@ -219,6 +219,16 @@ struct MenuBarView: View {
                     }
                 }
 
+                Toggle(
+                    "Show credits in menu bar",
+                    isOn:
+                        $preferences
+                        .showCreditsInMenuBar
+                )
+                .help(
+                    "Show the available Codex credit balance in the menu bar when Codex reports it."
+                )
+
                 Stepper(
                     "Refresh every \(preferences.refreshIntervalSeconds) seconds",
                     value: Binding(
