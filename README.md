@@ -6,7 +6,7 @@
 
 A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
 
-> **Status:** v0.2 development branch. Run it from source or build a local `.app` bundle.
+> **Status:** Available as a Homebrew Cask and as downloadable builds from GitHub Releases.
 
 ## Why CodexMenuBar?
 
@@ -46,13 +46,46 @@ The percentages represent **quota remaining**, matching the Codex UI. Click the 
 - Codex CLI installed and authenticated
 - Xcode / Swift 5.9 or newer for development
 
-## Quick start
+## Install
 
-If you already have Xcode and Codex installed:
+### Homebrew — recommended
+
+Install CodexMenuBar directly from the official project tap:
+
+```bash
+brew install --cask sangimed/tap/codex-menubar
+```
+
+Alternatively, add the tap first:
+
+```bash
+brew tap sangimed/tap
+brew install --cask codex-menubar
+```
+
+Upgrade to the latest stable release with:
+
+```bash
+brew update
+brew upgrade --cask codex-menubar
+```
+
+CodexMenuBar community builds are ad-hoc signed and are not notarized by Apple. macOS may therefore block the first launch. If that happens, try to open CodexMenuBar once, then go to **System Settings → Privacy & Security → Open Anyway**.
+
+### GitHub Release
+
+You can also download the latest macOS ZIP from the repository's **GitHub Releases** page, extract it, and move `CodexMenuBar.app` to `/Applications`.
+
+Release builds are universal and support both Apple Silicon and Intel Macs.
+
+### Build from source
+
+For development, or if you prefer to build CodexMenuBar yourself:
 
 ```bash
 git clone https://github.com/sangimed/codex-menubar.git
 cd codex-menubar
+
 make check
 make run
 
@@ -62,6 +95,8 @@ make app
 # Build the app and a distributable ZIP
 make package
 ```
+
+`make run` is intended for development. Features that rely on a real macOS app bundle, such as notifications and launch at login, should be tested with `make app` or an installed release.
 
 CodexMenuBar has no normal application window and no Dock icon. Look for it on the right side of your macOS menu bar.
 
@@ -135,9 +170,15 @@ git tag v0.2.0-beta.1
 git push origin v0.2.0-beta.1
 ```
 
-Release assets include the universal ZIP, its SHA-256 checksum, and a generated Homebrew Cask. Once the `sangimed/homebrew-tap` repository is configured, the workflow can update it automatically.
+Release assets include the universal ZIP, its SHA-256 checksum, and a generated Homebrew Cask. Stable releases automatically update the `sangimed/homebrew-tap` repository, which powers:
 
-See **[RELEASING.md](RELEASING.md)** for the complete free distribution setup, Homebrew tap bootstrap, Gatekeeper notes, and stable/prerelease flow.
+```bash
+brew install --cask sangimed/tap/codex-menubar
+```
+
+Prereleases are published on GitHub but are intentionally not promoted through the Homebrew tap.
+
+See **[RELEASING.md](RELEASING.md)** for the release workflow, Homebrew tap details, Gatekeeper notes, and stable/prerelease flow.
 
 ## Privacy
 
