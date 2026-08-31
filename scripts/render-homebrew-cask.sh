@@ -28,5 +28,13 @@ cask "codex-menubar" do
     "~/Library/Application Support/CodexMenuBar",
     "~/Library/Preferences/com.sangimed.codex-menubar.plist",
   ]
+
+  caveats <<~EOS
+    CodexMenuBar is ad-hoc signed and is not notarized by Apple.
+    macOS may block the first launch.
+
+    If that happens, try to open CodexMenuBar once, then go to:
+      System Settings > Privacy & Security > Open Anyway
+  EOS
 end
 RUBY
