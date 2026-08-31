@@ -49,6 +49,7 @@ jobs:
             /tmp/codex-menubar.rb
           grep -q 'cask "codex-menubar"' /tmp/codex-menubar.rb
           grep -q 'version "0.2.0"' /tmp/codex-menubar.rb
+          grep -q 'CodexMenuBar is ad-hoc signed and is not notarized by Apple.' /tmp/codex-menubar.rb
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
