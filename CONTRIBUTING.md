@@ -330,7 +330,7 @@ CodexMenuBar uses one persistent local app-server session:
 6. Keeps reading JSONL messages from the same stdout pipe.
 7. Applies `account/rateLimits/updated` notifications immediately.
 8. Reuses the same connection for manual refreshes.
-9. Sends a fallback `account/rateLimits/read` every 30 seconds.
+9. Sends a fallback `account/rateLimits/read` at the configured 15–300 second interval (30 seconds by default).
 10. Restarts the app-server with exponential backoff if it exits.
 
 This avoids repeatedly spawning Codex processes while keeping the menu bar fresher than fixed-interval polling.
@@ -360,7 +360,7 @@ v0.2 also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quo
 
 ### v0.2 local preferences, history, and notifications
 
-v0.2 stores display and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
+v0.2 stores display, refresh, and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
 
 Launch at login uses `SMAppService.mainApp` and is intended to be tested from a packaged `.app`, not from `swift run`.
 
@@ -481,7 +481,7 @@ CodexMenuBar deliberately displays missing windows as unavailable instead of inv
 
 ### The usage value is briefly stale
 
-The app normally updates from `account/rateLimits/updated` notifications and performs a 30-second fallback resync. If the persistent app-server disconnects, the last successful usage snapshot remains visible while CodexMenuBar reconnects automatically.
+The app normally updates from `account/rateLimits/updated` notifications and performs a configurable fallback resync. If the persistent app-server disconnects, the last successful usage snapshot remains visible while CodexMenuBar reconnects automatically.
 
 ## 15. Make a contribution
 
