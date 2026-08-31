@@ -122,7 +122,7 @@ make app
 make package
 ```
 
-`make app` creates an ad-hoc signed universal `dist/CodexMenuBar.app` (`arm64` + `x86_64`). Set `CODESIGN_IDENTITY` to use a Developer ID identity instead. `make package` additionally creates a versioned ZIP and SHA-256 checksum.
+`make app` creates an ad-hoc signed universal `dist/CodexMenuBar.app` (`arm64` + `x86_64`). The macOS `.icns` app icon is generated automatically from `assets/codex-menubar-logo.svg` and embedded in the bundle. Set `CODESIGN_IDENTITY` to use a Developer ID identity instead. `make package` additionally creates a versioned ZIP and SHA-256 checksum.
 
 Launch at login and macOS notifications are intended for a packaged app build; `swift run` remains the development path.
 
