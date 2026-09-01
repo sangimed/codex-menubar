@@ -1,12 +1,11 @@
 # Recommended GitHub repository settings
 
-These settings are not stored in Git. Apply them in GitHub after merging this
-hardening branch.
+These settings are not stored in Git and must be applied to the repository
+through GitHub.
 
 ## Protect `main`
 
-After merging the hardening changes, the maintainer can apply the recommended
-classic branch protection with:
+The maintainer can apply the recommended classic branch protection with:
 
 ```bash
 bash scripts/configure-main-protection.sh
