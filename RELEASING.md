@@ -13,28 +13,25 @@ notarized, Gatekeeper may require one explicit approval on first launch.
 
 ## 1. Version source of truth
 
-The repository root contains:
+The release version comes from the release operation itself:
 
-```text
-VERSION
-```
+- a manual **Actions → Release → Run workflow** input, or
+- a Git tag such as `v0.2.3`
 
-That file is the source of truth for local package builds and stable release
-automation.
+The workflow validates that value and injects it into:
 
-Before publishing a new release, update `VERSION` in a normal pull request,
-for example:
+- `CFBundleShortVersionString`
+- the versioned ZIP filename
+- the GitHub Release tag/title
+- the generated Homebrew Cask
 
-```text
-0.2.3
-```
+There is no repository `VERSION` file to bump before every release.
 
-The release workflow refuses to publish a version that does not match the
-`VERSION` file.
+The app-server client reads `CFBundleShortVersionString` from the packaged
+bundle, so Swift code does not contain a separate hard-coded release version.
 
-The app-server client reports the packaged app version from
-`CFBundleShortVersionString`, so the Swift code does not contain a second
-hard-coded release version.
+For ordinary local builds where no version is injected, the bundle uses the
+neutral development version `0.0.0`.
 
 ## 2. Test locally
 
@@ -46,6 +43,12 @@ git pull
 
 make test
 make package
+```
+
+To test packaging with the version you plan to publish:
+
+```bash
+VERSION=0.2.3 make package
 ```
 
 Verify that the app is universal:
@@ -76,37 +79,44 @@ The release workflow lives at:
 
 Recommended flow:
 
-1. Merge the version bump and release changes into `main`.
+1. Merge the release-ready code and changelog updates into `main`.
 2. Open **Actions → Release**.
 3. Click **Run workflow**.
-4. Select `main`.
-5. Enter the exact value from `VERSION`.
-6. Leave **Publish as a prerelease** disabled for stable releases.
+4. Keep the branch set to `main`.
+5. Enter a version such as `0.2.3`.
+6. Leave **Publish as a prerelease** disabled for a stable release.
 7. Run the workflow.
 
 Manual releases are intentionally restricted to `main`.
 
-Tag-based releases also remain supported:
+The workflow input is the version source of truth. No separate version-bump
+commit is required.
+
+### Tag-based release
+
+Tag pushes remain supported:
 
 ```bash
-VERSION="$(cat VERSION)"
-git tag "v$VERSION"
-git push origin "v$VERSION"
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
-A version containing a prerelease suffix is automatically marked as a
-prerelease.
+The workflow strips the leading `v`, validates the version, and injects
+`0.2.3` into the package.
+
+A version containing a prerelease suffix, for example
+`v0.3.0-beta.1`, is automatically published as a prerelease.
 
 ## 4. What the workflow does
 
 The workflow:
 
-1. validates the requested version against `VERSION`
+1. resolves and validates the version from the manual input or Git tag
 2. runs the Swift tests
-3. builds a universal app
+3. injects that version while building the universal app
 4. applies an ad-hoc signature
 5. creates the versioned ZIP and SHA-256 checksum
-6. renders the Homebrew Cask
+6. renders and validates the Homebrew Cask
 7. generates release notes from commits since the previous tag
 8. creates the GitHub Release
 9. updates `sangimed/homebrew-tap` for stable releases
@@ -115,11 +125,11 @@ Prereleases intentionally do not replace the stable Homebrew Cask.
 
 ## 5. Release artifacts
 
-For version `0.2.2`, for example:
+For version `0.2.3`, for example:
 
 ```text
-CodexMenuBar-v0.2.2-macOS.zip
-CodexMenuBar-v0.2.2-macOS.zip.sha256
+CodexMenuBar-v0.2.3-macOS.zip
+CodexMenuBar-v0.2.3-macOS.zip.sha256
 codex-menubar.rb
 ```
 
