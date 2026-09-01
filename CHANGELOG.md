@@ -2,6 +2,19 @@
 
 All notable user-facing changes are documented here.
 
+## 0.2.3
+
+- Hardened the public repository for external contributors and community use.
+- Added dedicated tests for Codex executable discovery and Finder/Spotlight-safe
+  process environments.
+- Refactored the app-server client and menu bar UI into smaller focused
+  components without changing the user experience.
+- Simplified release versioning so the Git tag or Release workflow input drives
+  the app bundle, package, GitHub Release, and Homebrew Cask version.
+- Added immutable GitHub Actions pins and Homebrew Cask style validation.
+- Added MIT licensing, security guidance, issue forms, release notes tooling,
+  and improved project documentation.
+
 ## 0.2.2
 
 - Fixed Codex connectivity when CodexMenuBar is launched from Finder or

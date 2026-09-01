@@ -35,12 +35,11 @@ jobs:
           bash -n scripts/generate-app-icon.sh
           bash -n scripts/generate-release-notes.sh
           bash -n scripts/package-app.sh
-          bash -n scripts/read-version.sh
           bash -n scripts/render-homebrew-cask.sh
           bash -n scripts/validate-homebrew-cask.sh
 
       - name: Build app bundle
-        run: make app
+        run: VERSION=9.9.9 make app
 
       - name: Verify universal app bundle
         run: |
@@ -55,9 +54,8 @@ jobs:
           ICON_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/CodexMenuBar.app/Contents/Info.plist)"
           [[ "$ICON_NAME" == "CodexMenuBar.icns" ]]
 
-          PROJECT_VERSION="$(bash scripts/read-version.sh)"
           BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/CodexMenuBar.app/Contents/Info.plist)"
-          [[ "$BUNDLE_VERSION" == "$PROJECT_VERSION" ]]
+          [[ "$BUNDLE_VERSION" == "9.9.9" ]]
 
           rm -rf /tmp/CodexMenuBar.iconset
           iconutil -c iconset "$ICON" -o /tmp/CodexMenuBar.iconset
@@ -67,13 +65,13 @@ jobs:
 
       - name: Validate Homebrew cask rendering
         run: |
-          VERSION="$(bash scripts/read-version.sh)"
+          TEST_VERSION="9.9.9"
           bash scripts/render-homebrew-cask.sh \
-            "$VERSION" \
+            "$TEST_VERSION" \
             aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
             /tmp/codex-menubar.rb
           grep -q 'cask "codex-menubar"' /tmp/codex-menubar.rb
-          grep -q "version \"$VERSION\"" /tmp/codex-menubar.rb
+          grep -q "version \"$TEST_VERSION\"" /tmp/codex-menubar.rb
           grep -q 'CodexMenuBar is ad-hoc signed and is not notarized by Apple.' /tmp/codex-menubar.rb
           bash scripts/validate-homebrew-cask.sh /tmp/codex-menubar.rb
 
