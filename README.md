@@ -9,7 +9,7 @@ A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a g
 <p align="center">
   <img src="docs/screenshots/codex-menubar-preview.webp" alt="CodexMenuBar showing 5-hour and weekly Codex usage from the macOS menu bar" width="760" />
   <br />
-  <sub>Example with the percentage display set to <strong>Used</strong>.</sub>
+  <sub>Example with the percentage display set to <strong>Remaining</strong>, showing the 5-hour window, weekly quota, and credits directly in the menu bar.</sub>
 </p>
 
 > **Status:** Available as a Homebrew Cask and as downloadable builds from GitHub Releases.
