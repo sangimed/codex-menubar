@@ -179,17 +179,20 @@ Launch at login and macOS notifications are intended for a packaged app build; `
 
 ### GitHub Releases and Homebrew
 
-The release workflow publishes versioned builds from `main`. The recommended
-path is **Actions → Release → Run workflow**, using the exact value from the
-root `VERSION` file.
+The release workflow publishes versioned builds from `main`. The version
+entered in **Actions → Release → Run workflow** is injected directly into the
+app bundle, ZIP name, GitHub Release, and Homebrew Cask.
 
 Tag-based releases are also supported:
 
 ```bash
-VERSION="$(cat VERSION)"
-git tag "v$VERSION"
-git push origin "v$VERSION"
+git tag v0.2.3
+git push origin v0.2.3
 ```
+
+For ordinary local builds, the bundle uses the neutral development version
+`0.0.0`. You can simulate a versioned package locally with
+`VERSION=0.2.3 make package`.
 
 Release assets include the universal ZIP, its SHA-256 checksum, and a generated Homebrew Cask. Stable releases automatically update the `sangimed/homebrew-tap` repository, which powers:
 
