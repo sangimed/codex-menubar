@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version matching the VERSION file"
+        description: "Release version, e.g. 0.2.3 or 0.3.0-beta.1"
         required: true
         type: string
       prerelease:
@@ -54,13 +54,6 @@ jobs:
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release version: $VERSION" >&2
-            exit 1
-          fi
-
-          PROJECT_VERSION="$(bash scripts/read-version.sh)"
-          if [[ "$VERSION" != "$PROJECT_VERSION" ]]; then
-            echo "Release version $VERSION does not match VERSION file ($PROJECT_VERSION)." >&2
-            echo "Update VERSION in a pull request before publishing a release." >&2
             exit 1
           fi
 
