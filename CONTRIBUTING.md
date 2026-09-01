@@ -264,7 +264,6 @@ make test
 
 ```text
 .
-├── VERSION
 ├── Package.swift
 ├── README.md
 ├── CONTRIBUTING.md
@@ -287,7 +286,6 @@ make test
 │   ├── generate-app-icon.swift
 │   ├── generate-release-notes.sh
 │   ├── package-app.sh
-│   ├── read-version.sh
 │   ├── render-homebrew-cask.sh
 │   └── validate-homebrew-cask.sh
 ├── Sources/
@@ -400,13 +398,19 @@ icon by itself:
 make icon
 ```
 
-To also create a versioned ZIP and SHA-256 checksum:
+To also create a ZIP and SHA-256 checksum:
 
 ```bash
 make package
 ```
 
-The root `VERSION` file is the source of truth for local package versions. Release automation verifies that the requested release version matches it.
+To simulate a specific release version locally:
+
+```bash
+VERSION=0.2.3 make package
+```
+
+Local builds use the neutral bundle version `0.0.0` unless `VERSION` is supplied as an environment variable. The release workflow injects the version from the Git tag or manual Release input, so no version file needs to be updated before publishing.
 
 Release builds are universal macOS binaries by default and contain both `arm64` and `x86_64`. See **[RELEASING.md](RELEASING.md)** for tagged GitHub Releases and Homebrew distribution.
 
