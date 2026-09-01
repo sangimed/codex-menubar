@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, e.g. 0.2.0 or 0.2.0-beta.1"
+        description: "Release version matching the VERSION file"
         required: true
         type: string
       prerelease:
@@ -29,7 +29,9 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
       - name: Resolve release
         env:
@@ -52,6 +54,13 @@ jobs:
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release version: $VERSION" >&2
+            exit 1
+          fi
+
+          PROJECT_VERSION="$(bash scripts/read-version.sh)"
+          if [[ "$VERSION" != "$PROJECT_VERSION" ]]; then
+            echo "Release version $VERSION does not match VERSION file ($PROJECT_VERSION)." >&2
+            echo "Update VERSION in a pull request before publishing a release." >&2
             exit 1
           fi
 
@@ -101,9 +110,23 @@ jobs:
 
           SHA256="$(shasum -a 256 "dist/$ASSET_NAME" | awk '{print $1}')"
 
-          bash scripts/render-homebrew-cask.sh             "$VERSION"             "$SHA256"             dist/codex-menubar.rb
+          bash scripts/render-homebrew-cask.sh \
+            "$VERSION" \
+            "$SHA256" \
+            dist/codex-menubar.rb
 
+          bash scripts/validate-homebrew-cask.sh dist/codex-menubar.rb
           echo "SHA256=$SHA256" >> "$GITHUB_ENV"
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/generate-release-notes.sh \
+            "$RELEASE_TAG" \
+            "$GITHUB_SHA" \
+            dist/release-notes.md
+          cat dist/release-notes.md
 
       - name: Create GitHub Release
         env:
@@ -118,7 +141,7 @@ jobs:
             "dist/codex-menubar.rb" \
             --repo "$GITHUB_REPOSITORY" \
             --title "CodexMenuBar $RELEASE_TAG" \
-            --generate-notes
+            --notes-file dist/release-notes.md
 
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
             set -- "$@" --verify-tag
@@ -151,7 +174,9 @@ jobs:
 
           TAP_DIR="$RUNNER_TEMP/homebrew-tap"
 
-          git clone             "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/sangimed/homebrew-tap.git"             "$TAP_DIR"
+          git clone \
+            "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/sangimed/homebrew-tap.git" \
+            "$TAP_DIR"
 
           mkdir -p "$TAP_DIR/Casks"
           cp dist/codex-menubar.rb "$TAP_DIR/Casks/codex-menubar.rb"

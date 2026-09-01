@@ -1,200 +1,148 @@
 # Releasing CodexMenuBar
 
-CodexMenuBar can be distributed without a paid Apple Developer membership.
+CodexMenuBar currently uses a free community distribution path:
 
-The free distribution path uses:
-
-- a universal macOS app bundle (`arm64` + `x86_64`)
+- universal macOS app bundle (`arm64` + `x86_64`)
 - ad-hoc code signing
-- a ZIP archive
-- a SHA-256 checksum
+- ZIP archive + SHA-256 checksum
 - GitHub Releases
-- an optional Homebrew tap
+- the `sangimed/homebrew-tap` Homebrew Cask
 
-Because the app is not signed with an Apple Developer ID and is not notarized,
-macOS Gatekeeper may require the user to explicitly allow the app after
-downloading it.
+Because community builds are not signed with an Apple Developer ID and are not
+notarized, Gatekeeper may require one explicit approval on first launch.
 
-## 1. Release artifacts
+## 1. Version source of truth
 
-For a version such as `0.2.0`, the release pipeline creates:
+The repository root contains:
 
 ```text
-CodexMenuBar.app
-CodexMenuBar-v0.2.0-macOS.zip
-CodexMenuBar-v0.2.0-macOS.zip.sha256
-codex-menubar.rb
+VERSION
 ```
 
-The ZIP contains the app bundle. The Ruby file is the generated Homebrew Cask.
+That file is the source of truth for local package builds and stable release
+automation.
 
-## 2. Test the package locally
+Before publishing a new release, update `VERSION` in a normal pull request,
+for example:
 
-Before tagging a release:
+```text
+0.2.3
+```
+
+The release workflow refuses to publish a version that does not match the
+`VERSION` file.
+
+The app-server client reports the packaged app version from
+`CFBundleShortVersionString`, so the Swift code does not contain a second
+hard-coded release version.
+
+## 2. Test locally
+
+Start from an up-to-date `main`:
 
 ```bash
-git switch feat/v0.2
+git switch main
 git pull
 
 make test
-VERSION=0.2.0 make package
+make package
 ```
 
-Verify the architectures:
+Verify that the app is universal:
 
 ```bash
 lipo -archs dist/CodexMenuBar.app/Contents/MacOS/CodexMenuBar
 ```
 
-Expected output contains both:
+The output must contain both:
 
 ```text
-x86_64 arm64
+arm64 x86_64
 ```
 
-Verify the ad-hoc signature:
+Verify the signature:
 
 ```bash
 codesign --verify --deep --strict --verbose=2 dist/CodexMenuBar.app
 ```
 
-## 3. GitHub Release automation
+## 3. Publish from GitHub Actions
 
-The release workflow is:
+The release workflow lives at:
 
 ```text
 .github/workflows/release.yml
 ```
 
-It can be started in two ways.
+Recommended flow:
 
-### Option A — Run it manually from GitHub Actions
-
-1. Open **Actions** in the GitHub repository.
-2. Select **Release**.
+1. Merge the version bump and release changes into `main`.
+2. Open **Actions → Release**.
 3. Click **Run workflow**.
-4. Keep the branch set to **main**.
-5. Enter a version such as `0.2.0` or `0.2.0-beta.1`.
-6. Enable **Publish as a prerelease** if desired.
-7. Click **Run workflow**.
-
-For a manual run, the workflow creates the Git tag automatically if it does not already exist.
-
-A version containing a prerelease suffix such as `-beta.1` is automatically treated as a prerelease even if the checkbox is left disabled.
-
-Stable example:
-
-```text
-version: 0.2.0
-prerelease: false
-```
-
-Beta example:
-
-```text
-version: 0.2.0-beta.1
-prerelease: true
-```
+4. Select `main`.
+5. Enter the exact value from `VERSION`.
+6. Leave **Publish as a prerelease** disabled for stable releases.
+7. Run the workflow.
 
 Manual releases are intentionally restricted to `main`.
 
-### Option B — Push a tag
-
-The existing tag-based workflow remains supported.
-
-Stable example:
+Tag-based releases also remain supported:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+VERSION="$(cat VERSION)"
+git tag "v$VERSION"
+git push origin "v$VERSION"
 ```
 
-Prerelease example:
+A version containing a prerelease suffix is automatically marked as a
+prerelease.
 
-```bash
-git tag v0.2.0-beta.1
-git push origin v0.2.0-beta.1
-```
-
-Tags containing a prerelease suffix are published as GitHub prereleases.
-
-Stable releases may update the Homebrew tap when `HOMEBREW_TAP_TOKEN` is configured. Prereleases intentionally skip the Homebrew tap so beta builds do not replace the stable Cask.
+## 4. What the workflow does
 
 The workflow:
 
-1. runs the Swift tests
-2. builds a universal macOS app
-3. applies an ad-hoc signature
-4. creates the versioned ZIP
-5. creates the SHA-256 checksum
+1. validates the requested version against `VERSION`
+2. runs the Swift tests
+3. builds a universal app
+4. applies an ad-hoc signature
+5. creates the versioned ZIP and SHA-256 checksum
 6. renders the Homebrew Cask
-7. creates the GitHub Release
-8. uploads all release artifacts
-9. optionally updates `sangimed/homebrew-tap`
+7. generates release notes from commits since the previous tag
+8. creates the GitHub Release
+9. updates `sangimed/homebrew-tap` for stable releases
 
-## 4. Create the Homebrew tap
+Prereleases intentionally do not replace the stable Homebrew Cask.
 
-The tap repository only needs to be created once.
+## 5. Release artifacts
 
-Using GitHub CLI:
-
-```bash
-gh repo create sangimed/homebrew-tap \
-  --public \
-  --description "Homebrew tap for Sangimed projects"
-```
-
-Homebrew maps:
+For version `0.2.2`, for example:
 
 ```text
-sangimed/tap
+CodexMenuBar-v0.2.2-macOS.zip
+CodexMenuBar-v0.2.2-macOS.zip.sha256
+codex-menubar.rb
 ```
 
-to:
+The ZIP contains `CodexMenuBar.app`.
 
-```text
-github.com/sangimed/homebrew-tap
-```
+## 6. Homebrew tap
 
-The generated Cask is stored at:
-
-```text
-Casks/codex-menubar.rb
-```
-
-## 5. Allow the release workflow to update the tap
-
-The normal GitHub Actions `GITHUB_TOKEN` for CodexMenuBar cannot write to a
-different repository.
-
-Create a fine-grained GitHub personal access token with **Contents: Read and
-write** access only to:
+Stable releases update:
 
 ```text
 sangimed/homebrew-tap
+└── Casks/
+    └── codex-menubar.rb
 ```
 
-Then save it as a repository Actions secret on `sangimed/codex-menubar`:
+This is powered by the `HOMEBREW_TAP_TOKEN` repository Actions secret. The
+fine-grained token only needs **Contents: Read and write** permission on
+`sangimed/homebrew-tap`.
 
-```bash
-gh secret set HOMEBREW_TAP_TOKEN --repo sangimed/codex-menubar
-```
+If the secret is unavailable, the GitHub Release can still be published; the
+tap update is skipped.
 
-Paste the token when prompted.
-
-If the secret is absent, the release workflow does not fail. It simply skips
-the tap update and still publishes `codex-menubar.rb` as a release asset.
-
-## 6. Install with Homebrew
-
-Once the tap contains the Cask:
-
-```bash
-brew tap sangimed/tap
-brew install --cask codex-menubar
-```
-
-The fully qualified form is:
+Install:
 
 ```bash
 brew install --cask sangimed/tap/codex-menubar
@@ -203,6 +151,7 @@ brew install --cask sangimed/tap/codex-menubar
 Upgrade:
 
 ```bash
+brew update
 brew upgrade --cask codex-menubar
 ```
 
@@ -212,34 +161,30 @@ Uninstall:
 brew uninstall --cask codex-menubar
 ```
 
-To also remove CodexMenuBar's local history/preferences as defined by the Cask:
+Remove local history and preferences too:
 
 ```bash
 brew uninstall --zap --cask codex-menubar
 ```
 
-## 7. Gatekeeper and unsigned community releases
+## 7. Gatekeeper
 
-Ad-hoc signing verifies the internal integrity of the app bundle, but it does
-not give the app an Apple-trusted Developer ID identity and does not notarize
-it.
+Ad-hoc signing verifies bundle integrity but does not establish an
+Apple-trusted Developer ID identity.
 
-On first launch, macOS may therefore block CodexMenuBar.
+If macOS blocks the first launch, use:
 
-A user should first try opening the app normally. If macOS blocks it, use the
-supported system route in **System Settings → Privacy & Security** to allow
-CodexMenuBar after the blocked launch attempt.
+**System Settings → Privacy & Security → Open Anyway**
 
-Do not instruct users to globally disable Gatekeeper.
+Do not instruct users to disable Gatekeeper globally.
 
-## 8. Moving to Developer ID later
+## 8. Developer ID later
 
-The packaging scripts already support a real signing identity through:
+The packaging script already accepts:
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: ..." make app
 ```
 
-If the project later joins the Apple Developer Program, the release workflow
-can be extended with Developer ID certificates and Apple notarization without
-changing the app architecture or Homebrew layout.
+A future Apple Developer Program setup can add Developer ID signing and
+notarization without changing the app architecture or Homebrew layout.

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/sangimed/codex-menubar/security
+    about: Please use a private security reporting path instead of a public issue.

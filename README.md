@@ -6,6 +6,12 @@
 
 A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
 
+<p align="center">
+  <img src="docs/screenshots/codex-menubar-preview.png" alt="CodexMenuBar showing 5-hour and weekly Codex usage from the macOS menu bar" width="760" />
+  <br />
+  <sub>Example with the percentage display set to <strong>Used</strong>.</sub>
+</p>
+
 > **Status:** Available as a Homebrew Cask and as downloadable builds from GitHub Releases.
 
 ## Why CodexMenuBar?
@@ -43,7 +49,7 @@ Click the item to see detailed five-hour and weekly usage, reset times, plan, cr
 - [x] Manual refresh
 - [x] Live updates from `account/rateLimits/updated`
 - [x] Persistent local app-server session
-- [x] configurable fallback resync (30 seconds by default)
+- [x] Configurable fallback resync (30 seconds by default)
 - [x] Preserve the last successful snapshot when a refresh fails
 - [x] Handle missing quota windows gracefully
 - [x] Apple Silicon and Intel-compatible Swift source
@@ -152,11 +158,11 @@ It identifies quota windows by duration instead of assuming that `primary` or `s
 
 If Codex does not report one of those windows, the popover shows it as unavailable rather than fabricating a value.
 
-If Codex exposes additional entries in `rateLimitsByLimitId`, v0.2 surfaces them under **Additional Codex limits** using the server-provided `limitName` when available. CodexMenuBar does not guess which model a limit belongs to.
+If Codex exposes additional entries in `rateLimitsByLimitId`, CodexMenuBar surfaces them under **Additional Codex limits** using the server-provided `limitName` when available. CodexMenuBar does not guess which model a limit belongs to.
 
 After the initial snapshot, CodexMenuBar listens for `account/rateLimits/updated` notifications and updates the UI immediately. Manual refreshes reuse the same connection, and a lightweight `account/rateLimits/read` runs at a configurable 15–300 second interval (30 seconds by default) as a fallback resync. If the app-server exits, CodexMenuBar restarts it with exponential backoff.
 
-## v0.2 local state
+## Local state
 
 Preferences use macOS `UserDefaults`. Usage history is stored locally under Application Support and retained for seven days. Threshold notifications use the macOS notification center. No history is uploaded by CodexMenuBar.
 
@@ -173,11 +179,16 @@ Launch at login and macOS notifications are intended for a packaged app build; `
 
 ### GitHub Releases and Homebrew
 
-The v0.2 release workflow publishes tagged builds automatically:
+The release workflow publishes versioned builds from `main`. The recommended
+path is **Actions → Release → Run workflow**, using the exact value from the
+root `VERSION` file.
+
+Tag-based releases are also supported:
 
 ```bash
-git tag v0.2.0-beta.1
-git push origin v0.2.0-beta.1
+VERSION="$(cat VERSION)"
+git tag "v$VERSION"
+git push origin "v$VERSION"
 ```
 
 Release assets include the universal ZIP, its SHA-256 checksum, and a generated Homebrew Cask. Stable releases automatically update the `sangimed/homebrew-tap` repository, which powers:
@@ -188,7 +199,7 @@ brew install --cask sangimed/tap/codex-menubar
 
 Prereleases are published on GitHub but are intentionally not promoted through the Homebrew tap.
 
-See **[RELEASING.md](RELEASING.md)** for the release workflow, Homebrew tap details, Gatekeeper notes, and stable/prerelease flow.
+See **[RELEASING.md](RELEASING.md)** for the release workflow, Homebrew tap details, Gatekeeper notes, and stable/prerelease flow. Release highlights are tracked in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## Privacy
 
@@ -240,9 +251,9 @@ xed .
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the complete beginner-friendly development setup and contribution workflow.
 
-## v0.2
+## Highlights
 
-The v0.2 branch adds:
+CodexMenuBar currently includes:
 
 - [x] Configurable menu bar display: both windows, 5-hour only, weekly only, or icon only
 - [x] Used vs. remaining percentage mode
@@ -256,7 +267,7 @@ The v0.2 branch adds:
 
 ## Known limitations
 
-- v0.2 community releases are ad-hoc signed and are not Apple-notarized, so Gatekeeper may require explicit user approval on first launch.
+- Community releases are ad-hoc signed and are not Apple-notarized, so Gatekeeper may require explicit user approval on first launch.
 - CodexMenuBar keeps one local `codex app-server` process alive while the app is running and reconnects automatically if it exits.
 - The Codex app-server protocol can evolve between Codex CLI releases.
 - Some accounts may temporarily receive only one quota window from Codex.
@@ -264,6 +275,12 @@ The v0.2 branch adds:
 ## Contributing
 
 Contributions are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**, especially if you have never configured Swift development on macOS before.
+
+Security reports should follow **[SECURITY.md](SECURITY.md)** rather than being opened as public issues.
+
+## License
+
+CodexMenuBar is released under the [MIT License](LICENSE).
 
 ## Disclaimer
 

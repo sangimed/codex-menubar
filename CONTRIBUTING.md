@@ -251,7 +251,7 @@ or:
 swift test
 ```
 
-The tests cover the Codex rate-limit JSON model and, importantly, verify that windows are classified by `windowDurationMins` instead of assuming `primary` always means five hours.
+The test suite covers rate-limit decoding and classification, Codex executable discovery, GUI-safe process environment construction, and preference validation.
 
 Before opening a pull request, run both:
 
@@ -264,36 +264,52 @@ make test
 
 ```text
 .
+├── VERSION
 ├── Package.swift
 ├── README.md
 ├── CONTRIBUTING.md
 ├── RELEASING.md
+├── CHANGELOG.md
+├── LICENSE
+├── SECURITY.md
 ├── Makefile
 ├── assets/
 │   └── codex-menubar-logo.svg
+├── docs/
+│   ├── REPOSITORY_SETTINGS.md
+│   └── screenshots/
 ├── scripts/
-│   ├── check-environment.sh
+│   ├── backfill-release-notes.sh
 │   ├── build-app.sh
+│   ├── check-environment.sh
+│   ├── configure-main-protection.sh
 │   ├── generate-app-icon.sh
 │   ├── generate-app-icon.swift
+│   ├── generate-release-notes.sh
 │   ├── package-app.sh
-│   └── render-homebrew-cask.sh
+│   ├── read-version.sh
+│   ├── render-homebrew-cask.sh
+│   └── validate-homebrew-cask.sh
 ├── Sources/
 │   ├── CodexMenuBar/
 │   │   ├── CodexMenuBarApp.swift
-│   │   ├── MenuBarLabel.swift
 │   │   ├── MenuBarView.swift
-│   │   ├── PreferencesStore.swift
-│   │   ├── UsageHistoryStore.swift
-│   │   ├── UsageNotificationManager.swift
-│   │   ├── LaunchAtLoginManager.swift
-│   │   └── UsageStore.swift
+│   │   ├── PreferencesSection.swift
+│   │   ├── UsageHistorySection.swift
+│   │   ├── AdditionalLimitsSection.swift
+│   │   ├── UsageComponents.swift
+│   │   └── ...
 │   └── CodexMenuBarCore/
 │       ├── CodexAppServerClient.swift
-│       └── RateLimitModels.swift
+│       ├── CodexAppServerError.swift
+│       ├── CodexExecutableResolver.swift
+│       ├── CodexRPCModels.swift
+│       ├── POSIXLineReader.swift
+│       ├── RateLimitModels.swift
+│       └── ...
 └── Tests/
-    └── CodexMenuBarCoreTests/
-        └── RateLimitModelsTests.swift
+    ├── CodexMenuBarCoreTests/
+    └── CodexMenuBarTests/
 ```
 
 ### `CodexMenuBarCore`
@@ -356,11 +372,11 @@ The five-hour and weekly limits are detected by duration:
 
 The code intentionally does not assume that `primary` and `secondary` always have fixed meanings.
 
-v0.2 also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quota, while any additional explicitly reported bucket is surfaced in the popover. The app uses `limitName` when Codex provides one and never guesses a model mapping.
+CodexMenuBar also inspects `rateLimitsByLimitId`. The `codex` entry remains the main quota, while any additional explicitly reported bucket is surfaced in the popover. The app uses `limitName` when Codex provides one and never guesses a model mapping.
 
-### v0.2 local preferences, history, and notifications
+### Local preferences, history, and notifications
 
-v0.2 stores display, refresh, and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
+CodexMenuBar stores display, refresh, and notification preferences in `UserDefaults`. Usage history is stored in the user's Application Support directory for seven days. Notification alerts are only emitted when a remaining quota crosses the configured threshold.
 
 Launch at login uses `SMAppService.mainApp` and is intended to be tested from a packaged `.app`, not from `swift run`.
 
@@ -387,8 +403,10 @@ make icon
 To also create a versioned ZIP and SHA-256 checksum:
 
 ```bash
-VERSION=0.2.0 make package
+make package
 ```
+
+The root `VERSION` file is the source of truth for local package versions. Release automation verifies that the requested release version matches it.
 
 Release builds are universal macOS binaries by default and contain both `arm64` and `x86_64`. See **[RELEASING.md](RELEASING.md)** for tagged GitHub Releases and Homebrew distribution.
 
@@ -406,9 +424,14 @@ CodexMenuBar therefore checks:
 
 - `CODEX_EXECUTABLE`
 - the current `PATH`
-- common Homebrew and local binary folders
+- Homebrew locations on Apple Silicon and Intel Macs
+- the official standalone installer under `~/.codex/packages/standalone`
+- common local npm locations
 - Volta, asdf, and mise shims
 - installed Node versions under `~/.nvm/versions/node`
+
+When launching the child process, CodexMenuBar also constructs a GUI-safe
+`PATH` so Finder/Spotlight launches do not depend on an interactive shell.
 
 If CodexMenuBar still cannot find Codex, get its path:
 
@@ -537,12 +560,9 @@ Keep the project lightweight and native:
 
 GitHub Actions runs on pushes to `main` and on pull requests.
 
-The CI currently runs:
-
-```bash
-swift build
-swift test
-```
+CI builds and tests the Swift package, creates the universal app bundle,
+verifies both architectures and the ad-hoc signature, checks the generated
+application icon and bundle version, and validates the generated Homebrew Cask.
 
 A pull request should be green before it is merged.
 
