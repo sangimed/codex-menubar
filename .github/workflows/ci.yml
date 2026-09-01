@@ -39,7 +39,7 @@ jobs:
           bash -n scripts/validate-homebrew-cask.sh
 
       - name: Build app bundle
-        run: make app
+        run: VERSION=9.9.9 make app
 
       - name: Verify universal app bundle
         run: |
@@ -55,7 +55,7 @@ jobs:
           [[ "$ICON_NAME" == "CodexMenuBar.icns" ]]
 
           BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/CodexMenuBar.app/Contents/Info.plist)"
-          [[ "$BUNDLE_VERSION" == "0.0.0" ]]
+          [[ "$BUNDLE_VERSION" == "9.9.9" ]]
 
           rm -rf /tmp/CodexMenuBar.iconset
           iconutil -c iconset "$ICON" -o /tmp/CodexMenuBar.iconset
