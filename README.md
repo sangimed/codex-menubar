@@ -2,9 +2,19 @@
   <img src="assets/codex-menubar-logo.svg" alt="CodexMenuBar logo" width="240" />
 </p>
 
-# CodexMenuBar
+<h1 align="center">CodexMenuBar</h1>
 
-A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
+<p align="center">
+  A native macOS menu bar app for monitoring your OpenAI Codex usage limits at a glance.
+</p>
+
+<p align="center">
+  <a href="https://github.com/sangimed/codex-menubar/actions/workflows/ci.yml"><img src="https://github.com/sangimed/codex-menubar/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
+  <a href="https://github.com/sangimed/codex-menubar/actions/workflows/release.yml"><img src="https://github.com/sangimed/codex-menubar/actions/workflows/release.yml/badge.svg" alt="Release workflow" /></a>
+  <a href="https://github.com/sangimed/codex-menubar/releases/latest"><img src="https://img.shields.io/github/v/release/sangimed/codex-menubar?display_name=tag&sort=semver" alt="Latest release" /></a>
+  <a href="https://github.com/sangimed/codex-menubar/releases"><img src="https://img.shields.io/github/downloads/sangimed/codex-menubar/total" alt="GitHub downloads" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/sangimed/codex-menubar" alt="License" /></a>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/codex-menubar-preview.png" alt="CodexMenuBar showing 5-hour and weekly Codex usage from the macOS menu bar" width="760" />
